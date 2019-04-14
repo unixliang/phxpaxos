@@ -405,7 +405,12 @@ void MessageEvent :: OnError(bool & bNeedDelete)
     {
         if (IsActive())
         {
-            AddTimer(200, MessageEventTimerType_Reconnect, m_iReconnectTimeoutID);
+            AddTimer(200,
+                     [this](const uint32_t iTimerID)->void {
+                         // MessageEventTimerType_Reconnect
+                         OnTimeout(iTimerID, MessageEventTimerType_Reconnect);
+                     },
+                     m_iReconnectTimeoutID);
         }
         else
         {

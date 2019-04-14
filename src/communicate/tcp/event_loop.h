@@ -63,13 +63,13 @@ public:
     void JumpoutEpollWait();
 
 public:
-    bool AddTimer(const Event * poEvent, const int iTimeout, const int iType, uint32_t & iTimerID);
+    bool AddTimer(const Event * poEvent, const int iTimeout, Timer::CallbackFunc fCallbackFunc, uint32_t & iTimerID);
 
     void RemoveTimer(const uint32_t iTimerID);
 
     void DealwithTimeout(int & iNextTimeout);
 
-    void DealwithTimeoutOne(const uint32_t iTimerID, const int iType);
+    void DealwithTimeoutOne(const uint32_t iTimerID, Timer::CallbackFunc fCallbackFunc);
 
 public:
     void AddEvent(int iFD, SocketAddress oAddr);

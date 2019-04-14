@@ -27,10 +27,10 @@ See the AUTHORS file for names of contributors.
 namespace phxpaxos
 {
 
-ProposerState :: ProposerState(const Config * poConfig)
+ProposerState :: ProposerState(const Config * poConfig, Group * poGroup)
 {
     m_poConfig = (Config *)poConfig;
-    m_llProposalID = 1;
+    m_poGroup = poGroup;
     Init();
 }
 
@@ -40,28 +40,15 @@ ProposerState :: ~ProposerState()
 
 void ProposerState :: Init()
 {
-    m_llHighestOtherProposalID = 0;
     m_sValue.clear();
-}
-
-void ProposerState ::  SetStartProposalID(const uint64_t llProposalID)
-{
-    m_llProposalID = llProposalID;
 }
 
 void ProposerState :: NewPrepare()
 {
-    PLGHead("START ProposalID %lu HighestOther %lu MyNodeID %lu",
-            m_llProposalID, m_llHighestOtherProposalID, m_poConfig->GetMyNodeID());
-        
-    uint64_t llMaxProposalID =
-        m_llProposalID > m_llHighestOtherProposalID ? m_llProposalID : m_llHighestOtherProposalID;
-
-    m_llProposalID = llMaxProposalID + 1;
-
-    PLGHead("END New.ProposalID %lu", m_llProposalID);
-
+    m_poGroup->NewPrepare();
+    m_llProposalID = m_poGroup->GetProposalID();
 }
+
 
 void ProposerState :: AddPreAcceptValue(
         const BallotNumber & oOtherPreAcceptBallot, 
@@ -102,10 +89,7 @@ void ProposerState :: SetValue(const std::string & sValue)
 
 void ProposerState :: SetOtherProposalID(const uint64_t llOtherProposalID)
 {
-    if (llOtherProposalID > m_llHighestOtherProposalID)
-    {
-        m_llHighestOtherProposalID = llOtherProposalID;
-    }
+    m_poGroup->SetOtherProposalID(llOtherProposalID);
 }
 
 void ProposerState :: ResetHighestOtherPreAcceptBallot()
@@ -119,11 +103,10 @@ Proposer :: Proposer(
         const Config * poConfig, 
         const MsgTransport * poMsgTransport,
         const Instance * poInstance,
-        const Learner * poLearner,
-        const IOLoop * poIOLoop)
-    : Base(poConfig, poMsgTransport, poInstance), m_oProposerState(poConfig), m_oMsgCounter(poConfig)
+        const IOLoop * poIOLoop,
+        const Group * poGroup)
+    : Base(poConfig, poMsgTransport, poInstance), m_oProposerState(poConfig), m_oMsgCounter(poConfig), m_poGroup(poGroup)
 {
-    m_poLearner = (Learner *)poLearner;
     m_poIOLoop = (IOLoop *)poIOLoop;
     
     m_bIsPreparing = false;
@@ -149,7 +132,6 @@ Proposer :: ~Proposer()
 
 void Proposer :: SetStartProposalID(const uint64_t llProposalID)
 {
-    m_oProposerState.SetStartProposalID(llProposalID);
 }
 
 void Proposer :: InitForNewPaxosInstance()
@@ -177,6 +159,11 @@ int Proposer :: NewValue(const std::string & sValue)
 
     m_iLastPrepareTimeoutMs = START_PREPARE_TIMEOUTMS;
     m_iLastAcceptTimeoutMs = START_ACCEPT_TIMEOUTMS;
+
+    if (-1 != m_llEndPromiseInstanceID && GetInstanceID() >= m_llEndPromiseInstanceID)
+    {
+        m_bCanSkipPrepare = false;
+    }
 
     if (m_bCanSkipPrepare && !m_bWasRejectBySomeone)
     {
@@ -225,14 +212,20 @@ void Proposer :: AddPrepareTimer(const int iTimeoutMs)
     {
         m_poIOLoop->AddTimer(
                 iTimeoutMs,
-                Timer_Proposer_Prepare_Timeout,
+                [this](const uint32_t iTimerID)->void {
+                    // Timer_Proposer_Prepare_Timeout
+                    OnPrepareTimeout();
+                },
                 m_iPrepareTimerID);
         return;
     }
 
     m_poIOLoop->AddTimer(
             m_iLastPrepareTimeoutMs,
-            Timer_Proposer_Prepare_Timeout,
+            [this](const uint32_t iTimerID)->void {
+                // Timer_Proposer_Prepare_Timeout
+                OnPrepareTimeout();
+            },
             m_iPrepareTimerID);
 
     m_llTimeoutInstanceID = GetInstanceID();
@@ -257,14 +250,20 @@ void Proposer :: AddAcceptTimer(const int iTimeoutMs)
     {
         m_poIOLoop->AddTimer(
                 iTimeoutMs,
-                Timer_Proposer_Accept_Timeout,
+                [this](const uint32_t iTimerID)->void {
+                    // Timer_Proposer_Accept_Timeout
+                    OnAcceptTimeout();
+                }
                 m_iAcceptTimerID);
         return;
     }
 
     m_poIOLoop->AddTimer(
             m_iLastAcceptTimeoutMs,
-            Timer_Proposer_Accept_Timeout,
+            [this](const uint32_t iTimerID)->void {
+                // Timer_Proposer_Accept_Timeout
+                OnAcceptTimeout();
+            },
             m_iAcceptTimerID);
 
     m_llTimeoutInstanceID = GetInstanceID();
@@ -339,6 +338,11 @@ void Proposer :: OnPrepareReply(const PaxosMsg & oPaxosMsg)
 
     if (oPaxosMsg.rejectbypromiseid() == 0)
     {
+        if (-1 == m_llEndPromiseInstanceID || oPaxosMsg.endpromiseinstanceid() < m_llEndPromiseInstanceID)
+        {
+            m_llEndPromiseInstanceID = oPaxosMsg.endpromiseinstanceid();
+        }
+
         BallotNumber oBallot(oPaxosMsg.preacceptid(), oPaxosMsg.preacceptnodeid());
         PLGDebug("[Promise] PreAcceptedID %lu PreAcceptedNodeID %lu ValueSize %zu", 
                 oPaxosMsg.preacceptid(), oPaxosMsg.preacceptnodeid(), oPaxosMsg.value().size());
@@ -436,6 +440,11 @@ void Proposer :: OnAcceptReply(const PaxosMsg & oPaxosMsg)
 
     if (oPaxosMsg.rejectbypromiseid() == 0)
     {
+        if (-1 == m_llEndPromiseInstanceID || oPaxosMsg.endpromiseinstanceid() < m_llEndPromiseInstanceID)
+        {
+            m_llEndPromiseInstanceID = oPaxosMsg.endpromiseinstanceid();
+        }
+
         PLGDebug("[Accept]");
         m_oMsgCounter.AddPromiseOrAccept(oPaxosMsg.nodeid());
     }

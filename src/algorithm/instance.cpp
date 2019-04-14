@@ -31,17 +31,17 @@ Instance :: Instance(
         const Config * poConfig, 
         const LogStorage * poLogStorage,
         const MsgTransport * poMsgTransport,
-        const Options & oOptions)
-    : m_oSMFac(poConfig->GetMyGroupIdx()),
+        const Options & oOptions,
+        const Group * poGroup)
+    :
     m_oIOLoop((Config *)poConfig, this),
-    m_oAcceptor(poConfig, poMsgTransport, this, poLogStorage), 
-    m_oLearner(poConfig, poMsgTransport, this, &m_oAcceptor, poLogStorage, &m_oIOLoop, &m_oCheckpointMgr, &m_oSMFac),
-    m_oProposer(poConfig, poMsgTransport, this, &m_oLearner, &m_oIOLoop),
+    m_oAcceptor(poConfig, poMsgTransport, this, poLogStorage, poGroup),
+    m_oProposer(poConfig, poMsgTransport, this, &m_oIOLoop, poGroup),
     m_oPaxosLog(poLogStorage),
     m_oCommitCtx((Config *)poConfig),
     m_oCommitter((Config *)poConfig, &m_oCommitCtx, &m_oIOLoop, &m_oSMFac),
-    m_oCheckpointMgr((Config *)poConfig, &m_oSMFac, (LogStorage *)poLogStorage, oOptions.bUseCheckpointReplayer),
-    m_oOptions(oOptions), m_bStarted(false)
+    m_oOptions(oOptions), m_bStarted(false),
+    m_poGroup(poGroup)
 {
     m_poConfig = (Config *)poConfig;
     m_poMsgTransport = (MsgTransport *)poMsgTransport;
@@ -54,73 +54,15 @@ Instance :: ~Instance()
     PLGHead("Instance Deleted, GroupIdx %d.", m_poConfig->GetMyGroupIdx());
 }
 
-int Instance :: Init()
+int Instance :: Init(uint64_t llNowInstanceID)
 {
-    //Must init acceptor first, because the max instanceid is record in acceptor state.
-    int ret = m_oAcceptor.Init();
-    if (ret != 0)
-    {
-        PLGErr("Acceptor.Init fail, ret %d", ret);
-        return ret;
-    }
-
-    ret = m_oCheckpointMgr.Init();
-    if (ret != 0)
-    {
-        PLGErr("CheckpointMgr.Init fail, ret %d", ret);
-        return ret;
-    }
-
-    uint64_t llCPInstanceID = m_oCheckpointMgr.GetCheckpointInstanceID() + 1;
-
-    PLGImp("Acceptor.OK, Log.InstanceID %lu Checkpoint.InstanceID %lu", 
-            m_oAcceptor.GetInstanceID(), llCPInstanceID);
-
-    uint64_t llNowInstanceID = llCPInstanceID;
-    if (llNowInstanceID < m_oAcceptor.GetInstanceID())
-    {
-        ret = PlayLog(llNowInstanceID, m_oAcceptor.GetInstanceID());
-        if (ret != 0)
-        {
-            return ret;
-        }
-
-        PLGImp("PlayLog OK, begin instanceid %lu end instanceid %lu", llNowInstanceID, m_oAcceptor.GetInstanceID());
-
-        llNowInstanceID = m_oAcceptor.GetInstanceID();
-    }
-    else
-    {
-        if (llNowInstanceID > m_oAcceptor.GetInstanceID())
-        {
-            ret = ProtectionLogic_IsCheckpointInstanceIDCorrect(llNowInstanceID, m_oAcceptor.GetInstanceID());
-            if (ret != 0)
-            {
-                return ret;
-            }
-            m_oAcceptor.InitForNewPaxosInstance();
-        }
-        
-        m_oAcceptor.SetInstanceID(llNowInstanceID);
-    }
-
     PLGImp("NowInstanceID %lu", llNowInstanceID);
 
-    m_oLearner.SetInstanceID(llNowInstanceID);
+    //proposer
     m_oProposer.SetInstanceID(llNowInstanceID);
-    m_oProposer.SetStartProposalID(m_oAcceptor.GetAcceptorState()->GetPromiseBallot().m_llProposalID + 1);
 
-    m_oCheckpointMgr.SetMaxChosenInstanceID(llNowInstanceID);
-
-    ret = InitLastCheckSum();
-    if (ret != 0)
-    {
-        return ret;
-    }
-
-    m_oLearner.Reset_AskforLearn_Noop();
-
-    PLGImp("OK");
+    //acceptor
+    m_oAcceptor.SetInstanceID(llNowInstanceID);
 
     return 0;
 }
@@ -147,127 +89,16 @@ void Instance :: Stop()
     }
 }
 
-int Instance :: ProtectionLogic_IsCheckpointInstanceIDCorrect(const uint64_t llCPInstanceID, const uint64_t llLogMaxInstanceID) 
-{
-    if (llCPInstanceID <= llLogMaxInstanceID + 1)
-    {
-        return 0;
-    }
-
-    //checkpoint_instanceid larger than log_maxinstanceid+1 will appear in the following situations 
-    //1. Pull checkpoint from other node automatically and restart. (normal case)
-    //2. Paxos log was manually all deleted. (may be normal case)
-    //3. Paxos log is lost because Options::bSync set as false. (bad case)
-    //4. Checkpoint data corruption results an error checkpoint_instanceid. (bad case)
-    //5. Checkpoint data copy from other node manually. (bad case)
-    //In these bad cases, paxos log between [log_maxinstanceid, checkpoint_instanceid) will not exist
-    //and checkpoint data maybe wrong, we can't ensure consistency in this case.
-
-    if (llLogMaxInstanceID == 0)
-    {
-        //case 1. Automatically pull checkpoint will delete all paxos log first.
-        //case 2. No paxos log. 
-        //If minchosen instanceid < checkpoint instanceid.
-        //Then Fix minchosen instanceid to avoid that paxos log between [log_maxinstanceid, checkpoint_instanceid) not exist.
-        //if minchosen isntanceid > checkpoint.instanceid.
-        //That probably because the automatic pull checkpoint did not complete successfully.
-        uint64_t llMinChosenInstanceID = m_oCheckpointMgr.GetMinChosenInstanceID();
-        if (m_oCheckpointMgr.GetMinChosenInstanceID() != llCPInstanceID)
-        {
-            int ret = m_oCheckpointMgr.SetMinChosenInstanceID(llCPInstanceID);
-            if (ret != 0)
-            {
-                PLGErr("SetMinChosenInstanceID fail, now minchosen %lu max instanceid %lu checkpoint instanceid %lu",
-                        m_oCheckpointMgr.GetMinChosenInstanceID(), llLogMaxInstanceID, llCPInstanceID);
-                return -1;
-            }
-
-            PLGStatus("Fix minchonse instanceid ok, old minchosen %lu now minchosen %lu max %lu checkpoint %lu",
-                    llMinChosenInstanceID, m_oCheckpointMgr.GetMinChosenInstanceID(),
-                    llLogMaxInstanceID, llCPInstanceID);
-        }
-
-        return 0;
-    }
-    else
-    {
-        //other case.
-        PLGErr("checkpoint instanceid %lu larger than log max instanceid %lu. "
-                "Please ensure that your checkpoint data is correct. "
-                "If you ensure that, just delete all paxos log data and restart.",
-                llCPInstanceID, llLogMaxInstanceID);
-        return -2;
-    }
-}
-
-int Instance :: InitLastCheckSum()
-{
-    if (m_oAcceptor.GetInstanceID() == 0)
-    {
-        m_iLastChecksum = 0;
-        return 0;
-    }
-
-    if (m_oAcceptor.GetInstanceID() <= m_oCheckpointMgr.GetMinChosenInstanceID())
-    {
-        m_iLastChecksum = 0;
-        return 0;
-    }
-
-    AcceptorStateData oState;
-    int ret = m_oPaxosLog.ReadState(m_poConfig->GetMyGroupIdx(), m_oAcceptor.GetInstanceID() - 1, oState);
-    if (ret != 0 && ret != 1)
-    {
-        return ret;
-    }
-
-    if (ret == 1)
-    {
-        PLGErr("las checksum not exist, now instanceid %lu", m_oAcceptor.GetInstanceID());
-        m_iLastChecksum = 0;
-        return 0;
-    }
-
-    m_iLastChecksum = oState.checksum();
-
-    PLGImp("ok, last checksum %u", m_iLastChecksum);
-
-    return 0;
-}
-
-int Instance :: PlayLog(const uint64_t llBeginInstanceID, const uint64_t llEndInstanceID)
-{
-    if (llBeginInstanceID < m_oCheckpointMgr.GetMinChosenInstanceID())
-    {
-        PLGErr("now instanceid %lu small than min chosen instanceid %lu", 
-                llBeginInstanceID, m_oCheckpointMgr.GetMinChosenInstanceID());
-        return -2;
-    }
-
-    for (uint64_t llInstanceID = llBeginInstanceID; llInstanceID < llEndInstanceID; llInstanceID++)
-    {
-        AcceptorStateData oState; 
-        int ret = m_oPaxosLog.ReadState(m_poConfig->GetMyGroupIdx(), llInstanceID, oState);
-        if (ret != 0)
-        {
-            PLGErr("log read fail, instanceid %lu ret %d", llInstanceID, ret);
-            return ret;
-        }
-
-        bool bExecuteRet = m_oSMFac.Execute(m_poConfig->GetMyGroupIdx(), llInstanceID, oState.acceptedvalue(), nullptr);
-        if (!bExecuteRet)
-        {
-            PLGErr("Execute fail, instanceid %lu", llInstanceID);
-            return -1;
-        }
-    }
-
-    return 0;
-}
 
 const uint32_t Instance :: GetLastChecksum()
 {
     return m_iLastChecksum;
+}
+
+
+Acceptor * Instance :: GetAcceptor()
+{
+    return &m_oAcceptor;
 }
 
 Committer * Instance :: GetCommitter()
@@ -283,6 +114,11 @@ Cleaner * Instance :: GetCheckpointCleaner()
 Replayer * Instance :: GetCheckpointReplayer()
 {
     return m_oCheckpointMgr.GetReplayer();
+}
+
+Group * Instance :: GetGroup()
+{
+    return m_poGroup;
 }
 
 ////////////////////////////////////////////////
@@ -325,7 +161,10 @@ void Instance :: CheckNewValue()
 
     if (m_oCommitCtx.GetTimeoutMs() != -1)
     {
-        m_oIOLoop.AddTimer(m_oCommitCtx.GetTimeoutMs(), Timer_Instance_Commit_Timeout, m_iCommitTimerID);
+        m_oIOLoop.AddTimer(m_oCommitCtx.GetTimeoutMs(), [this](const uint32_t iTimerID)->void {
+                                                            // Timer_Instance_Commit_Timeout
+                                                            OnNewValueCommitTimeout();
+                                                        }, m_iCommitTimerID);
     }
     
     m_oTimeStat.Point();
@@ -371,113 +210,6 @@ int Instance :: OnReceiveMessage(const char * pcMessage, const int iMessageLen)
     m_oIOLoop.AddMessage(pcMessage, iMessageLen);
 
     return 0;
-}
-
-bool Instance :: ReceiveMsgHeaderCheck(const Header & oHeader, const nodeid_t iFromNodeID)
-{
-    if (m_poConfig->GetGid() == 0 || oHeader.gid() == 0)
-    {
-        return true;
-    }
-
-    if (m_poConfig->GetGid() != oHeader.gid())
-    {
-        BP->GetAlgorithmBaseBP()->HeaderGidNotSame();
-        PLGErr("Header check fail, header.gid %lu config.gid %lu, msg.from_nodeid %lu",
-                oHeader.gid(), m_poConfig->GetGid(), iFromNodeID);
-        return false;
-    }
-
-    return true;
-}
-
-void Instance :: OnReceive(const std::string & sBuffer)
-{
-    BP->GetInstanceBP()->OnReceive();
-
-    if (sBuffer.size() <= 6)
-    {
-        PLGErr("buffer size %zu too short", sBuffer.size());
-        return;
-    }
-
-    Header oHeader;
-    size_t iBodyStartPos = 0;
-    size_t iBodyLen = 0;
-    int ret = Base::UnPackBaseMsg(sBuffer, oHeader, iBodyStartPos, iBodyLen);
-    if (ret != 0)
-    {
-        return;
-    }
-
-    int iCmd = oHeader.cmdid();
-
-    if (iCmd == MsgCmd_PaxosMsg)
-    {
-        if (m_oCheckpointMgr.InAskforcheckpointMode())
-        {
-            PLGImp("in ask for checkpoint mode, ignord paxosmsg");
-            return;
-        }
-        
-        PaxosMsg oPaxosMsg;
-        bool bSucc = oPaxosMsg.ParseFromArray(sBuffer.data() + iBodyStartPos, iBodyLen);
-        if (!bSucc)
-        {
-            BP->GetInstanceBP()->OnReceiveParseError();
-            PLGErr("PaxosMsg.ParseFromArray fail, skip this msg");
-            return;
-        }
-
-        if (!ReceiveMsgHeaderCheck(oHeader, oPaxosMsg.nodeid()))
-        {
-            return;
-        }
-        
-        OnReceivePaxosMsg(oPaxosMsg);
-    }
-    else if (iCmd == MsgCmd_CheckpointMsg)
-    {
-        CheckpointMsg oCheckpointMsg;
-        bool bSucc = oCheckpointMsg.ParseFromArray(sBuffer.data() + iBodyStartPos, iBodyLen);
-        if (!bSucc)
-        {
-            BP->GetInstanceBP()->OnReceiveParseError();
-            PLGErr("PaxosMsg.ParseFromArray fail, skip this msg");
-            return;
-        }
-
-        if (!ReceiveMsgHeaderCheck(oHeader, oCheckpointMsg.nodeid()))
-        {
-            return;
-        }
-        
-        OnReceiveCheckpointMsg(oCheckpointMsg);
-    }
-}
-
-void Instance :: OnReceiveCheckpointMsg(const CheckpointMsg & oCheckpointMsg)
-{
-    PLGImp("Now.InstanceID %lu MsgType %d Msg.from_nodeid %lu My.nodeid %lu flag %d"
-            " uuid %lu sequence %lu checksum %lu offset %lu buffsize %zu filepath %s",
-            m_oAcceptor.GetInstanceID(), oCheckpointMsg.msgtype(), oCheckpointMsg.nodeid(),
-            m_poConfig->GetMyNodeID(), oCheckpointMsg.flag(), oCheckpointMsg.uuid(), oCheckpointMsg.sequence(), oCheckpointMsg.checksum(),
-            oCheckpointMsg.offset(), oCheckpointMsg.buffer().size(), oCheckpointMsg.filepath().c_str());
-
-    if (oCheckpointMsg.msgtype() == CheckpointMsgType_SendFile)
-    {
-        if (!m_oCheckpointMgr.InAskforcheckpointMode())
-        {
-            PLGImp("not in ask for checkpoint mode, ignord checkpoint msg");
-            return;
-        }
-
-        m_oLearner.OnSendCheckpoint(oCheckpointMsg);
-    }
-    else if (oCheckpointMsg.msgtype() == CheckpointMsgType_SendFile_Ack)
-    {
-        m_oLearner.OnSendCheckpointAck(oCheckpointMsg);
-    }
 }
 
 int Instance :: OnReceivePaxosMsg(const PaxosMsg & oPaxosMsg, const bool bIsRetry)
@@ -607,7 +339,8 @@ int Instance :: ReceiveMsgForAcceptor(const PaxosMsg & oPaxosMsg, const bool bIs
     {
         BP->GetInstanceBP()->OnReceivePaxosAcceptorMsgInotsame();
     }
-    
+
+    /*
     if (oPaxosMsg.instanceid() == m_oAcceptor.GetInstanceID() + 1)
     {
         //skip success message
@@ -617,6 +350,7 @@ int Instance :: ReceiveMsgForAcceptor(const PaxosMsg & oPaxosMsg, const bool bIs
 
         ReceiveMsgForLearner(oNewPaxosMsg);
     }
+    */
             
     if (oPaxosMsg.instanceid() == m_oAcceptor.GetInstanceID())
     {
@@ -629,6 +363,9 @@ int Instance :: ReceiveMsgForAcceptor(const PaxosMsg & oPaxosMsg, const bool bIs
             m_oAcceptor.OnAccept(oPaxosMsg);
         }
     }
+
+// TODO: 下一个窗口的消息进重试队列
+/*
     else if ((!bIsRetry) && (oPaxosMsg.instanceid() > m_oAcceptor.GetInstanceID()))
     {
         //retry msg can't retry again.
@@ -656,7 +393,7 @@ int Instance :: ReceiveMsgForAcceptor(const PaxosMsg & oPaxosMsg, const bool bIs
             }
         }
     }
-
+*/
     return 0;
 }
 

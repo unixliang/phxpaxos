@@ -22,6 +22,7 @@ See the AUTHORS file for names of contributors.
 #pragma once
 
 #include <vector>
+#include <function>
 #include <inttypes.h>
 
 namespace phxpaxos
@@ -30,26 +31,28 @@ namespace phxpaxos
 class Timer
 {
 public:
+    using CallbackFunc = std::function<void(const uint32_t /*iTimerID*/)>;
+
     Timer();
     ~Timer();
 
     void AddTimer(const uint64_t llAbsTime, uint32_t & iTimerID);
     
-    void AddTimerWithType(const uint64_t llAbsTime, const int iType, uint32_t & iTimerID);
+    void AddTimerWithCallbackFunc(const uint64_t llAbsTime, CallbackFunc fCallbackFunc, uint32_t & iTimerID);
 
-    bool PopTimeout(uint32_t & iTimerID, int & iType);
+    bool PopTimeout(uint32_t & iTimerID, uint64_t & llInstanceID, CallbackFunc & fCallbackFunc);
 
     const int GetNextTimeout() const;
     
 private:
     struct TimerObj
     {
-        TimerObj(uint32_t iTimerID, uint64_t llAbsTime, int iType) 
-            : m_iTimerID(iTimerID), m_llAbsTime(llAbsTime), m_iType(iType) {}
+        TimerObj(uint32_t iTimerID, uint64_t llAbsTime, CallbackFunc fCallbackFunc) 
+            : m_iTimerID(iTimerID), m_llAbsTime(llAbsTime), m_fCallbackFunc(fCallbackFunc) {}
 
         uint32_t m_iTimerID;
         uint64_t m_llAbsTime;
-        int m_iType;
+        CallbackFunc m_fCallbackFunc;
 
         bool operator < (const TimerObj & obj) const
         {

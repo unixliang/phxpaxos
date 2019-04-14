@@ -115,17 +115,15 @@ const bool LearnerState :: GetIsLearned()
 Learner :: Learner(
         const Config * poConfig, 
         const MsgTransport * poMsgTransport,
-        const Instance * poInstance,
-        const Acceptor * poAcceptor,
+        const Group * poGroup,
         const LogStorage * poLogStorage,
         const IOLoop * poIOLoop,
         const CheckpointMgr * poCheckpointMgr,
         const SMFac * poSMFac)
-    : Base(poConfig, poMsgTransport, poInstance), m_oLearnerState(poConfig, poLogStorage), 
+    : m_poGroup(poGroup), Base(poConfig, poMsgTransport, poGroup), m_oLearnerState(poConfig, poLogStorage), 
     m_oPaxosLog(poLogStorage), m_oLearnerSender((Config *)poConfig, this, &m_oPaxosLog),
     m_oCheckpointReceiver((Config *)poConfig, (LogStorage *)poLogStorage)
 {
-    m_poAcceptor = (Acceptor *)poAcceptor;
     InitForNewPaxosInstance();
 
     m_iAskforlearn_noopTimerID = 0;
@@ -186,9 +184,9 @@ void Learner :: Stop()
 
 ////////////////////////////////////////////////////////////////
 
-const bool Learner :: IsIMLatest() 
+const bool Learner :: IsIMLatest()
 {
-    return (GetInstanceID() + 1) >= m_llHighestSeenInstanceID;
+    return (GetInstanceID() + m_poGroup->GetMaxWindowSize()) >= m_llHighestSeenInstanceID;
 }
 
 const uint64_t Learner :: GetSeenLatestInstanceID()
@@ -214,7 +212,10 @@ void Learner :: Reset_AskforLearn_Noop(const int iTimeout)
         m_poIOLoop->RemoveTimer(m_iAskforlearn_noopTimerID);
     }
 
-    m_poIOLoop->AddTimer(iTimeout, Timer_Learner_Askforlearn_noop, m_iAskforlearn_noopTimerID);
+    m_poIOLoop->AddTimer(iTimeout, [this](const uint32_t iTimerID)->void {
+                                       // Timer_Learner_Askforlearn_noop
+                                       AskforLearn_Noop();
+                                   }, m_iAskforlearn_noopTimerID);
 }
 
 void Learner :: AskforLearn_Noop(const bool bIsStart)
@@ -547,15 +548,17 @@ void Learner :: TransmitToFollower()
     {
         return;
     }
+
+    AcceptorState *poCurrentAcceptorState = m_poGroup->GetCurrentInstance()->GetAcceptor()->GetAcceptorState();
     
     PaxosMsg oPaxosMsg;
     
     oPaxosMsg.set_msgtype(MsgType_PaxosLearner_SendLearnValue);
     oPaxosMsg.set_instanceid(GetInstanceID());
     oPaxosMsg.set_nodeid(m_poConfig->GetMyNodeID());
-    oPaxosMsg.set_proposalnodeid(m_poAcceptor->GetAcceptorState()->GetAcceptedBallot().m_llNodeID);
-    oPaxosMsg.set_proposalid(m_poAcceptor->GetAcceptorState()->GetAcceptedBallot().m_llProposalID);
-    oPaxosMsg.set_value(m_poAcceptor->GetAcceptorState()->GetAcceptedValue());
+    oPaxosMsg.set_proposalnodeid(poCurrentAcceptorState->GetAcceptedBallot().m_llNodeID);
+    oPaxosMsg.set_proposalid(poCurrentAcceptorState->GetAcceptedBallot().m_llProposalID);
+    oPaxosMsg.set_value(poCurrentAcceptorState->GetAcceptedValue());
     oPaxosMsg.set_lastchecksum(GetLastChecksum());
 
     BroadcastMessageToFollower(oPaxosMsg, Message_SendType_TCP);
@@ -585,11 +588,13 @@ void Learner :: OnProposerSendSuccess(const PaxosMsg & oPaxosMsg)
 {
     BP->GetLearnerBP()->OnProposerSendSuccess();
 
+    AcceptorState *poCurrentAcceptorState = m_poGroup->GetCurrentInstance()->GetAcceptor()->GetAcceptorState();
+
     PLGHead("START Msg.InstanceID %lu Now.InstanceID %lu Msg.ProposalID %lu State.AcceptedID %lu "
             "State.AcceptedNodeID %lu, Msg.from_nodeid %lu",
             oPaxosMsg.instanceid(), GetInstanceID(), oPaxosMsg.proposalid(), 
-            m_poAcceptor->GetAcceptorState()->GetAcceptedBallot().m_llProposalID,
-            m_poAcceptor->GetAcceptorState()->GetAcceptedBallot().m_llNodeID, 
+            poCurrentAcceptorState->GetAcceptedBallot().m_llProposalID,
+            poCurrentAcceptorState->GetAcceptedBallot().m_llNodeID, 
             oPaxosMsg.nodeid());
 
     if (oPaxosMsg.instanceid() != GetInstanceID())
@@ -599,7 +604,7 @@ void Learner :: OnProposerSendSuccess(const PaxosMsg & oPaxosMsg)
         return;
     }
 
-    if (m_poAcceptor->GetAcceptorState()->GetAcceptedBallot().isnull())
+    if (poCurrentAcceptorState->GetAcceptedBallot().isnull())
     {
         //Not accept any yet.
         BP->GetLearnerBP()->OnProposerSendSuccessNotAcceptYet();
@@ -609,7 +614,7 @@ void Learner :: OnProposerSendSuccess(const PaxosMsg & oPaxosMsg)
 
     BallotNumber oBallot(oPaxosMsg.proposalid(), oPaxosMsg.nodeid());
 
-    if (m_poAcceptor->GetAcceptorState()->GetAcceptedBallot()
+    if (poCurrentAcceptorState->GetAcceptedBallot()
             != oBallot)
     {
         //Proposalid not same, this accept value maybe not chosen value.
@@ -621,12 +626,12 @@ void Learner :: OnProposerSendSuccess(const PaxosMsg & oPaxosMsg)
     //learn value.
     m_oLearnerState.LearnValueWithoutWrite(
             oPaxosMsg.instanceid(),
-            m_poAcceptor->GetAcceptorState()->GetAcceptedValue(),
-            m_poAcceptor->GetAcceptorState()->GetChecksum());
+            poCurrentAcceptorState->GetAcceptedValue(),
+            poCurrentAcceptorState->GetChecksum());
     
     BP->GetLearnerBP()->OnProposerSendSuccessSuccessLearn();
 
-    PLGHead("END Learn value OK, value %zu", m_poAcceptor->GetAcceptorState()->GetAcceptedValue().size());
+    PLGHead("END Learn value OK, value %zu", poCurrentAcceptorState->GetAcceptedValue().size());
 
     TransmitToFollower();
 }

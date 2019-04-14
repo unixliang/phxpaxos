@@ -45,7 +45,8 @@ public:
             const Config * poConfig, 
             const LogStorage * poLogStorage,
             const MsgTransport * poMsgTransport,
-            const Options & oOptions);
+            const Options & oOptions
+            const Group * poGroup);
     ~Instance();
 
     int Init();
@@ -65,11 +66,15 @@ public:
     int GetInstanceValue(const uint64_t llInstanceID, std::string & sValue, int & iSMID);
 
 public:
+    Acceptor * GetAcceptor();
+
     Committer * GetCommitter();
 
     Cleaner * GetCheckpointCleaner();
 
     Replayer * GetCheckpointReplayer();
+
+    Group * GetGroup();
 
 public:
     void CheckNewValue();
@@ -81,10 +86,6 @@ public:
     int OnReceiveMessage(const char * pcMessage, const int iMessageLen);
 
 public:
-    void OnReceive(const std::string & sBuffer);
-    
-    void OnReceiveCheckpointMsg(const CheckpointMsg & oCheckpointMsg);
-
     int OnReceivePaxosMsg(const PaxosMsg & oPaxosMsg, const bool bIsRetry = false);
     
     int ReceiveMsgForProposer(const PaxosMsg & oPaxosMsg);
@@ -108,10 +109,6 @@ public:
 private:
     void ChecksumLogic(const PaxosMsg & oPaxosMsg);
 
-    int PlayLog(const uint64_t llBeginInstanceID, const uint64_t llEndInstanceID);
-
-    bool ReceiveMsgHeaderCheck(const Header & oHeader, const nodeid_t iFromNodeID);
-
     int ProtectionLogic_IsCheckpointInstanceIDCorrect(const uint64_t llCPInstanceID, const uint64_t llLogMaxInstanceID);
 
 private:
@@ -121,7 +118,6 @@ private:
     Config * m_poConfig;
     MsgTransport * m_poMsgTransport;
 
-    SMFac m_oSMFac;
 
     IOLoop m_oIOLoop;
 
@@ -140,13 +136,15 @@ private:
     Committer m_oCommitter;
 
 private:
-    CheckpointMgr m_oCheckpointMgr;
+
 
 private:
     TimeStat m_oTimeStat;
     Options m_oOptions;
 
     bool m_bStarted;
+
+    Group * m_poGroup;
 };
     
 }

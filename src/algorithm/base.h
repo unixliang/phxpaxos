@@ -97,7 +97,7 @@ public:
 
 ///////////////////////////////////////////////////////////
 
-class Instance;
+class Group;
 
 enum BroadcastMessage_Type
 {
@@ -109,7 +109,7 @@ enum BroadcastMessage_Type
 class Base
 {
 public:
-    Base(const Config * poConfig, const MsgTransport * poMsgTransport, const Instance * poInstance);
+    Base(const Config * poConfig, const MsgTransport * poMsgTransport, const Group * poGroup);
     virtual ~Base();
 
 public:
@@ -157,7 +157,7 @@ protected:
 protected:
     Config * m_poConfig;
     MsgTransport * m_poMsgTransport;
-    Instance * m_poInstance;
+    Group * m_poGroup;
 
 private:
     uint64_t m_llInstanceID;

@@ -36,14 +36,15 @@ Timer :: ~Timer()
 
 void Timer :: AddTimer(const uint64_t llAbsTime, uint32_t & iTimerID)
 {
-    return AddTimerWithType(llAbsTime, 0, iTimerID);
+    return AddTimerWithType(llAbsTime, iTimerID, nullptr);
 }
 
-void Timer :: AddTimerWithType(const uint64_t llAbsTime, const int iType, uint32_t & iTimerID)
+//void Timer :: AddTimerWithType(const uint64_t llAbsTime, uint32_t & iTimerID, const int iType, const uint64_t llInstacneID)
+void Timer :: AddTimerWithType(const uint64_t llAbsTime, CallbackFunc fCallbackFunc, uint32_t & iTimerID)
 {
     iTimerID = m_iNowTimerID++;
 
-    TimerObj tObj(iTimerID, llAbsTime, iType);
+    TimerObj tObj(iTimerID, llAbsTime, fCallbackFunc);
     m_vecTimerHeap.push_back(tObj);
     push_heap(begin(m_vecTimerHeap), end(m_vecTimerHeap));
 }
@@ -67,7 +68,7 @@ const int Timer :: GetNextTimeout() const
     return iNextTimeout;
 }
 
-bool Timer :: PopTimeout(uint32_t & iTimerID, int & iType)
+bool Timer :: PopTimeout(uint32_t & iTimerID, uint64_t & llInstanceID, CallbackFunc & fCallbackFunc)
 {
     if (m_vecTimerHeap.empty())
     {
@@ -85,7 +86,7 @@ bool Timer :: PopTimeout(uint32_t & iTimerID, int & iType)
     m_vecTimerHeap.pop_back();
 
     iTimerID = tObj.m_iTimerID;
-    iType = tObj.m_iType;
+    fCallbackFunc = tObj.m_fCallbackFunc;
 
     return true;
 }    

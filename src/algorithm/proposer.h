@@ -37,8 +37,6 @@ public:
 
     void Init();
 
-    void SetStartProposalID(const uint64_t llProposalID);
-
     void NewPrepare();
 
     void AddPreAcceptValue(const BallotNumber & oOtherPreAcceptBallot, const std::string & sOtherPreAcceptValue);
@@ -56,8 +54,6 @@ public:
     void ResetHighestOtherPreAcceptBallot();
 
 public:
-    uint64_t m_llProposalID;
-    uint64_t m_llHighestOtherProposalID;
     std::string m_sValue;
 
     BallotNumber m_oHighestOtherPreAcceptBallot;
@@ -67,8 +63,6 @@ public:
 
 //////////////////////////////////////////////////
 
-class Learner;
-
 class Proposer : public Base
 {
 public:
@@ -76,11 +70,9 @@ public:
             const Config * poConfig, 
             const MsgTransport * poMsgTransport,
             const Instance * poInstance,
-            const Learner * poLearner,
-            const IOLoop * poIOLoop);
+            const IOLoop * poIOLoop,
+            const Group * poGroup);
     ~Proposer();
-
-    void SetStartProposalID(const uint64_t llProposalID);
 
     virtual void InitForNewPaxosInstance();
 
@@ -121,7 +113,6 @@ public:
 public:
     ProposerState m_oProposerState;
     MsgCounter m_oMsgCounter;
-    Learner * m_poLearner;
 
     bool m_bIsPreparing;
     bool m_bIsAccepting;
@@ -139,6 +130,10 @@ public:
     bool m_bWasRejectBySomeone;
 
     TimeStat m_oTimeStat;
+
+    Group * m_poGroup;
+
+    uint64_t m_llEndPromiseInstanceID{-1};
 };
     
 }

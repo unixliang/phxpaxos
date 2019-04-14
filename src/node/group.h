@@ -22,6 +22,7 @@ See the AUTHORS file for names of contributors.
 #pragma once
 
 #include <thread>
+#include <vector>
 #include "comm_include.h"
 #include "config_include.h"
 #include "instance.h"
@@ -46,6 +47,8 @@ public:
 
     void StartInit();
 
+    void InitLastCheckSum();
+
     void Init();
 
     int GetInitRet();
@@ -56,7 +59,9 @@ public:
 
     Config * GetConfig();
 
-    Instance * GetInstance();
+    Instance * GetInstanceByInstanceID(uint64_t llInstanceID);
+
+    Instance * GetCurrentInstance();
 
     Committer * GetCommitter();
 
@@ -66,13 +71,54 @@ public:
 
     void AddStateMachine(StateMachine * poSM);
 
+    uint64_t GetProposalID() const;
+
+    void NewPrepare();
+
+    void SetOtherProposalID(const uint64_t llOtherProposalID);
+
+    uint32_t GetMaxWindowSize();
+
+    void SetPromiseBallot(const uint64_t llInstanceID, const BallotNumber &oBallotNumber);
+
+    BallotNumber GetPromiseBallot(const uint64_t llInstanceID, uint64_t & llEndPromiseInstanceID) const;
+
+    void OnReceiveCheckpointMsg(const CheckpointMsg & oCheckpointMsg);
+
+    bool ReceiveMsgHeaderCheck(const Header & oHeader, const nodeid_t iFromNodeID);
+
+    void OnReceive(const std::string & sBuffer);
+
+
 private:
+    int GetMaxInstanceIDFromLog(uint64_t & llMaxInstanceID);
+
+    int ProtectionLogic_IsCheckpointInstanceIDCorrect(const uint64_t llCPInstanceID, const uint64_t llLogMaxInstanceID);
+
+    int PlayLog(const uint64_t llBeginInstanceID, const uint64_t llEndInstanceID);
+
+private:
+    LogStorage * m_poLogStorage;
+
     Communicate m_oCommunicate;
     Config m_oConfig;
-    Instance m_oInstance;
+    std::vector<Instance> m_vecInstances;
+    uint32_t m_iMaxWindowSize{10};
 
-    int m_iInitRet;
+    int m_iInitRet{0};
     std::thread * m_poThread;
+
+    CheckpointMgr m_oCheckpointMgr;
+    SMFac m_oSMFac;
+
+    uint64_t m_llNowInstanceID{-1};
+    uint32_t m_iLastChecksum{0};
+
+    uint64_t m_llProposalID{0}; // for proposer Prepare/Accept
+    //TODO: m_llProposalID range ceiling
+    uint64_t m_llHighestOtherProposalID{0};
+
+    std::map<uint64_t, BallotNumber> m_mapInstanceID2PromiseBallot; // for acceptor OnPrepare
 };
     
 }

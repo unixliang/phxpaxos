@@ -76,8 +76,7 @@ public:
     Learner(
             const Config * poConfig, 
             const MsgTransport * poMsgTransport,
-            const Instance * poInstance,
-            const Acceptor * poAcceptor,
+            const Group * poGroup,
             const LogStorage * poLogStorage,
             const IOLoop * poIOLoop,
             const CheckpointMgr * poCheckpointMgr,
@@ -194,7 +193,7 @@ private:
 private:
     LearnerState m_oLearnerState;
 
-    Acceptor * m_poAcceptor;
+    Group * m_poGroup;
     PaxosLog m_oPaxosLog;
 
     uint32_t m_iAskforlearn_noopTimerID;

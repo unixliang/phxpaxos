@@ -39,7 +39,7 @@ class Instance;
 class IOLoop : public Thread
 {
 public:
-    IOLoop(Config * poConfig, Instance * poInstance);
+    IOLoop(Config * poConfig, Group * poGroup);
     virtual ~IOLoop();
 
     void run();
@@ -60,13 +60,13 @@ public:
     void AddNotify();
 
 public:
-    virtual bool AddTimer(const int iTimeout, const int iType, uint32_t & iTimerID);
+    virtual bool AddTimer(const int iTimeout, Timer::CallbackFunc fCallbackFunc, uint32_t & iTimerID);
 
     virtual void RemoveTimer(uint32_t & iTimerID);
 
     void DealwithTimeout(int & iNextTimeout);
 
-    void DealwithTimeoutOne(const uint32_t iTimerID, const int iType);
+    void DealwithTimeoutOne(const uint32_t iTimerID, Timer::CallbackFunc fCallbackFunc);
 
 private:
     bool m_bIsEnd;
@@ -74,13 +74,13 @@ private:
     Timer m_oTimer;
     std::map<uint32_t, bool> m_mapTimerIDExist;
 
-    Queue<std::string *> m_oMessageQueue;
+    Queue<std::string*> m_oMessageQueue;
     std::queue<PaxosMsg> m_oRetryQueue;
 
     int m_iQueueMemSize;
 
     Config * m_poConfig;
-    Instance * m_poInstance;
+    Group * m_poGroup;
 };
     
 }

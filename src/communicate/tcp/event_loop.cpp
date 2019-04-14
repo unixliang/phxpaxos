@@ -248,7 +248,7 @@ void EventLoop :: OnError(const int iEvents, Event * poEvent)
     }
 }
 
-bool EventLoop :: AddTimer(const Event * poEvent, const int iTimeout, const int iType, uint32_t & iTimerID)
+bool EventLoop :: AddTimer(const Event * poEvent, const int iTimeout, Timer::CallbackFunc fCallbackFunc, uint32_t & iTimerID)
 {
     if (poEvent->GetSocketFd() == 0)
     {
@@ -265,7 +265,7 @@ bool EventLoop :: AddTimer(const Event * poEvent, const int iTimeout, const int 
     }
 
     uint64_t llAbsTime = Time::GetSteadyClockMS() + iTimeout;
-    m_oTimer.AddTimerWithType(llAbsTime, iType, iTimerID);
+    m_oTimer.AddTimerWithCallbackFunc(llAbsTime, fCallbackFunc, iTimerID);
 
     m_mapTimerID2FD[iTimerID] = poEvent->GetSocketFd();
 
@@ -281,12 +281,12 @@ void EventLoop :: RemoveTimer(const uint32_t iTimerID)
     }
 }
 
-void EventLoop :: DealwithTimeoutOne(const uint32_t iTimerID, const int iType)
+void EventLoop :: DealwithTimeoutOne(const uint32_t iTimerID, Timer::CallbackFunc fCallbackFunc)
 {
     auto it = m_mapTimerID2FD.find(iTimerID);
     if (it == end(m_mapTimerID2FD))
     {
-        //PLErr("Timeout aready remove!, timerid %u iType %d", iTimerID, iType);
+        //PLErr("Timeout aready remove!, timerid %u", iTimerID);
         return;
     }
 
@@ -300,7 +300,7 @@ void EventLoop :: DealwithTimeoutOne(const uint32_t iTimerID, const int iType)
         return;
     }
 
-    eventIt->second.m_poEvent->OnTimeout(iTimerID, iType);
+    fCallbackFunc(iTimerID);
 }
 
 void EventLoop :: DealwithTimeout(int & iNextTimeout)
@@ -310,12 +310,12 @@ void EventLoop :: DealwithTimeout(int & iNextTimeout)
     while(bHasTimeout)
     {
         uint32_t iTimerID = 0;
-        int iType = 0;
-        bHasTimeout = m_oTimer.PopTimeout(iTimerID, iType);
+        Timer::CallbackFunc fCallbackFunc = nullptr;
+        bHasTimeout = m_oTimer.PopTimeout(iTimerID, fCallbackFunc);
 
         if (bHasTimeout)
         {
-            DealwithTimeoutOne(iTimerID, iType);
+            DealwithTimeoutOne(iTimerID, fCallbackFunc);
 
             iNextTimeout = m_oTimer.GetNextTimeout();
             if (iNextTimeout != 0)

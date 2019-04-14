@@ -28,8 +28,8 @@ using namespace std;
 namespace phxpaxos
 {
 
-IOLoop :: IOLoop(Config * poConfig, Instance * poInstance)
-    : m_poConfig(poConfig), m_poInstance(poInstance)
+IOLoop :: IOLoop(Config * poConfig, Group * poGroup)
+    : m_poConfig(poConfig), m_poGroup(poGroup)
 {
     m_bIsEnd = false;
     m_bIsStart = false;
@@ -144,6 +144,8 @@ void IOLoop :: DealWithRetry()
     bool bHaveRetryOne = false;
     while (!m_oRetryQueue.empty())
     {
+// TODO: 处理下一个窗口的消息
+/*
         PaxosMsg & oPaxosMsg = m_oRetryQueue.front();
         if (oPaxosMsg.instanceid() > m_poInstance->GetNowInstanceID() + 1)
         {
@@ -170,14 +172,14 @@ void IOLoop :: DealWithRetry()
             m_poInstance->OnReceivePaxosMsg(oPaxosMsg);
             bHaveRetryOne = true;
         }
-
+*/
         m_oRetryQueue.pop();
     }
 }
 
 void IOLoop :: OneLoop(const int iTimeoutMs)
 {
-    std::string * psMessage = nullptr;
+    string *psMessage = nullptr;
 
     m_oMessageQueue.lock();
     bool bSucc = m_oMessageQueue.peek(psMessage, iTimeoutMs);
@@ -191,10 +193,15 @@ void IOLoop :: OneLoop(const int iTimeoutMs)
         m_oMessageQueue.pop();
         m_oMessageQueue.unlock();
 
-        if (psMessage != nullptr && psMessage->size() > 0)
+        if (psMessage->size() > 0)
         {
             m_iQueueMemSize -= psMessage->size();
-            m_poInstance->OnReceive(*psMessage);
+
+            auto poInstance = m_poGroup->GetInstanceByInstanceID(llInstanceID);
+            if (poInstance)
+            {
+                poInstance->OnReceive(psMessage);
+            }
         }
 
         delete psMessage;
@@ -209,7 +216,7 @@ void IOLoop :: OneLoop(const int iTimeoutMs)
     m_poInstance->CheckNewValue();
 }
 
-bool IOLoop :: AddTimer(const int iTimeout, const int iType, uint32_t & iTimerID)
+bool IOLoop :: AddTimer(const int iTimeout, Timer::CallbackFunc fCallbackFunc, uint32_t & iTimerID)
 {
     if (iTimeout == -1)
     {
@@ -217,7 +224,7 @@ bool IOLoop :: AddTimer(const int iTimeout, const int iType, uint32_t & iTimerID
     }
     
     uint64_t llAbsTime = Time::GetSteadyClockMS() + iTimeout;
-    m_oTimer.AddTimerWithType(llAbsTime, iType, iTimerID);
+    m_oTimer.AddTimerWithType(llAbsTime, fCallbackFunc, iTimerID);
 
     m_mapTimerIDExist[iTimerID] = true;
 
@@ -235,7 +242,7 @@ void IOLoop :: RemoveTimer(uint32_t & iTimerID)
     iTimerID = 0;
 }
 
-void IOLoop :: DealwithTimeoutOne(const uint32_t iTimerID, const int iType)
+void IOLoop :: DealwithTimeoutOne(const uint32_t iTimerID, Timer::CallbackFunc fCallbackFunc)
 {
     auto it = m_mapTimerIDExist.find(iTimerID);
     if (it == end(m_mapTimerIDExist))
@@ -246,7 +253,7 @@ void IOLoop :: DealwithTimeoutOne(const uint32_t iTimerID, const int iType)
 
     m_mapTimerIDExist.erase(it);
 
-    m_poInstance->OnTimeout(iTimerID, iType);
+    fCallbackFunc(iTimerID);
 }
 
 void IOLoop :: DealwithTimeout(int & iNextTimeout)
@@ -256,12 +263,12 @@ void IOLoop :: DealwithTimeout(int & iNextTimeout)
     while(bHasTimeout)
     {
         uint32_t iTimerID = 0;
-        int iType = 0;
-        bHasTimeout = m_oTimer.PopTimeout(iTimerID, iType);
+        Timer::CallbackFunc fCallbackFunc = nullptr;
+        bHasTimeout = m_oTimer.PopTimeout(iTimerID, fCallbackFunc);
 
         if (bHasTimeout)
         {
-            DealwithTimeoutOne(iTimerID, iType);
+            DealwithTimeoutOne(iTimerID, fCallbackFunc);
 
             iNextTimeout = m_oTimer.GetNextTimeout();
             if (iNextTimeout != 0)

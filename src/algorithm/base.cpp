@@ -21,17 +21,17 @@ See the AUTHORS file for names of contributors.
 
 #include "base.h"
 #include "msg_transport.h"
-#include "instance.h"
+#include "group.h"
 #include "crc32.h"
 
 namespace phxpaxos 
 {
 
-Base :: Base(const Config * poConfig, const MsgTransport * poMsgTransport, const Instance * poInstance)
+Base :: Base(const Config * poConfig, const MsgTransport * poMsgTransport, const Group * poGroup)
 {
     m_poConfig = (Config *)poConfig;
     m_poMsgTransport = (MsgTransport *)poMsgTransport;
-    m_poInstance = (Instance *)poInstance;
+    m_poGroup = (Group *)poGroup;
 
     m_llInstanceID = 0;
 
@@ -54,13 +54,14 @@ void Base :: SetInstanceID(const uint64_t llInstanceID)
 
 void Base :: NewInstance()
 {
+    // TODO: FinishInstance
     m_llInstanceID++;
     InitForNewPaxosInstance();
 }
 
 const uint32_t Base :: GetLastChecksum() const
 {
-    return m_poInstance->GetLastChecksum();
+    return m_poGroup->GetInstanceByInstanceID(m_llInstanceID)->GetLastChecksum();
 }
 
 int Base :: PackMsg(const PaxosMsg & oPaxosMsg, std::string & sBuffer)
@@ -217,7 +218,7 @@ int Base :: SendMessage(const nodeid_t iSendtoNodeID, const PaxosMsg & oPaxosMsg
 
     if (iSendtoNodeID == m_poConfig->GetMyNodeID())
     {
-        m_poInstance->OnReceivePaxosMsg(oPaxosMsg);
+        m_poGroup->GetInstanceByInstanceID(m_llInstanceID)->OnReceivePaxosMsg(oPaxosMsg);
         return 0; 
     }
     
@@ -242,7 +243,7 @@ int Base :: BroadcastMessage(const PaxosMsg & oPaxosMsg, const int iRunType, con
 
     if (iRunType == BroadcastMessage_Type_RunSelf_First)
     {
-        if (m_poInstance->OnReceivePaxosMsg(oPaxosMsg) != 0)
+        if (m_poGroup->GetInstanceByInstanceID(m_llInstanceID)->OnReceivePaxosMsg(oPaxosMsg) != 0)
         {
             return -1;
         }
@@ -259,7 +260,7 @@ int Base :: BroadcastMessage(const PaxosMsg & oPaxosMsg, const int iRunType, con
 
     if (iRunType == BroadcastMessage_Type_RunSelf_Final)
     {
-        m_poInstance->OnReceivePaxosMsg(oPaxosMsg);
+        m_poGroup->GetInstanceByInstanceID(m_llInstanceID)->OnReceivePaxosMsg(oPaxosMsg);
     }
 
     return ret;

@@ -49,10 +49,9 @@ public:
     const uint32_t GetChecksum() const;
 
     int Persist(const uint64_t llInstanceID, const uint32_t iLastChecksum);
-    int Load(uint64_t & llInstanceID);
 
 //private:
-    BallotNumber m_oPromiseBallot;
+    BallotNumber m_oPromiseBallot; // range
     BallotNumber m_oAcceptedBallot;
     std::string m_sAcceptedValue;
     uint32_t m_iChecksum;
@@ -72,12 +71,11 @@ public:
             const Config * poConfig, 
             const MsgTransport * poMsgTransport, 
             const Instance * poInstance,
-            const LogStorage * poLogStorage);
+            const LogStorage * poLogStorage
+            const Group * poGroup);
     ~Acceptor();
 
     virtual void InitForNewPaxosInstance();
-
-    int Init();
 
     AcceptorState * GetAcceptorState();
 
@@ -85,8 +83,11 @@ public:
 
     void OnAccept(const PaxosMsg & oPaxosMsg);
 
-//private:
+private:
     AcceptorState m_oAcceptorState;
+
+    Group * m_poGroup;
+
 };
     
 }
