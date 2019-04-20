@@ -41,6 +41,7 @@ ProposerState :: ~ProposerState()
 void ProposerState :: Init()
 {
     m_sValue.clear();
+    m_llProposalID = m_poGroup->GetProposalID();
 }
 
 void ProposerState :: NewPrepare()
@@ -160,7 +161,8 @@ int Proposer :: NewValue(const std::string & sValue)
     m_iLastPrepareTimeoutMs = START_PREPARE_TIMEOUTMS;
     m_iLastAcceptTimeoutMs = START_ACCEPT_TIMEOUTMS;
 
-    if (-1 != m_llEndPromiseInstanceID && GetInstanceID() >= m_llEndPromiseInstanceID)
+
+    if (m_poGroup->NeedPrepare(GetInstanceID()))
     {
         m_bCanSkipPrepare = false;
     }
@@ -338,9 +340,9 @@ void Proposer :: OnPrepareReply(const PaxosMsg & oPaxosMsg)
 
     if (oPaxosMsg.rejectbypromiseid() == 0)
     {
-        if (-1 == m_llEndPromiseInstanceID || oPaxosMsg.endpromiseinstanceid() < m_llEndPromiseInstanceID)
+        if (-1 != oPaxosMsg.endpromiseinstanceid())
         {
-            m_llEndPromiseInstanceID = oPaxosMsg.endpromiseinstanceid();
+            m_poGroup->SetPromiseInfo(GetInstanceID(), oPaxosMsg.endpromiseinstanceid());
         }
 
         BallotNumber oBallot(oPaxosMsg.preacceptid(), oPaxosMsg.preacceptnodeid());
@@ -440,9 +442,9 @@ void Proposer :: OnAcceptReply(const PaxosMsg & oPaxosMsg)
 
     if (oPaxosMsg.rejectbypromiseid() == 0)
     {
-        if (-1 == m_llEndPromiseInstanceID || oPaxosMsg.endpromiseinstanceid() < m_llEndPromiseInstanceID)
+        if (-1 != oPaxosMsg.endpromiseinstanceid())
         {
-            m_llEndPromiseInstanceID = oPaxosMsg.endpromiseinstanceid();
+            m_poGroup->SetPromiseInfo(GetInstanceID(), oPaxosMsg.endpromiseinstanceid());
         }
 
         PLGDebug("[Accept]");

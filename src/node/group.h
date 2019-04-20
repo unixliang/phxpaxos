@@ -79,9 +79,9 @@ public:
 
     uint32_t GetMaxWindowSize();
 
-    void SetPromiseBallot(const uint64_t llInstanceID, const BallotNumber &oBallotNumber);
+    void SetPromiseBallotForAcceptor(const uint64_t llInstanceID, const BallotNumber &oBallotNumber);
 
-    BallotNumber GetPromiseBallot(const uint64_t llInstanceID, uint64_t & llEndPromiseInstanceID) const;
+    BallotNumber GetPromiseBallotForAcceptor(const uint64_t llInstanceID, uint64_t & llEndPromiseInstanceID) const;
 
     void OnReceiveCheckpointMsg(const CheckpointMsg & oCheckpointMsg);
 
@@ -89,6 +89,11 @@ public:
 
     void OnReceive(const std::string & sBuffer);
 
+
+
+    void SetPromiseInfo(const uint64_t llPromiseInstanceID, const uint64_t llEndPromiseInstanceID);
+
+    bool NeedPrepare(const uint64_t llInstanceID);
 
 private:
     int GetMaxInstanceIDFromLog(uint64_t & llMaxInstanceID);
@@ -115,10 +120,15 @@ private:
     uint32_t m_iLastChecksum{0};
 
     uint64_t m_llProposalID{0}; // for proposer Prepare/Accept
-    //TODO: m_llProposalID range ceiling
     uint64_t m_llHighestOtherProposalID{0};
 
+    std::set<uint64_t> m_setPromiseInstanceID;
+    std::set<uint64_t> m_setEndPromiseInstanceID;
+    uint64_t m_llEndPromiseInstanceID{-1};
+
     std::map<uint64_t, BallotNumber> m_mapInstanceID2PromiseBallot; // for acceptor OnPrepare
+
+
 };
     
 }

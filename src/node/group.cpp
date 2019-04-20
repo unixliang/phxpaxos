@@ -312,8 +312,13 @@ uint32_t Group :: GetMaxWindowSize()
 }
 
 
-void Group :: SetPromiseBallot(const uint64_t llInstanceID, const BallotNumber &oBallotNumber)
+void Group :: SetPromiseBallotForAcceptor(const uint64_t llInstanceID, const BallotNumber &oBallotNumber)
 {
+    uint64_t llEndPromiseInstanceID{-1};
+    BallotNumber oPromiseBallotNumber = GetPromiseBallotForAcceptor(llInstanceID, llEndPromiseInstanceID);
+
+    if (oBallotNumber <= oPromiseBallotNumber) return;
+
     m_mapInstanceID2PromiseBallot[llInstanceID] = oBallotNumber;
     while (m_mapInstanceID2PromiseBallot.size() > GetMaxWindowSize())
     {
@@ -321,34 +326,19 @@ void Group :: SetPromiseBallot(const uint64_t llInstanceID, const BallotNumber &
     }
 }
 
-BallotNumber Group :: GetPromiseBallot(const uint64_t llInstanceID, uint64_t & llEndPromiseInstanceID) const
+BallotNumber Group :: GetPromiseBallotForAcceptor(const uint64_t llInstanceID, uint64_t & llEndPromiseInstanceID) const
 {
     llEndPromiseInstanceID = -1;
-    auto &&itLower = m_mapInstanceID2PromiseBallot.lower_bound(llInstanceID);
-    if (m_mapInstanceID2PromiseBallot.end() == itLower)
-    {
+
+    auto it = m_mapInstanceID2PromiseBallot.upper_bound(llInstanceID);
+    if (m_mapInstanceID2PromiseBallot.end() != it) {
+        llEndPromiseInstanceID = it->first;
+    }
+    if (m_mapInstanceID2PromiseBallot.begin() == it) {
         return BallotNumber();
     }
-    else if (itLower->first == llInstanceID)
-    {
-        auto &&itUpper = m_mapInstanceID2PromiseBallot.upper_bound(llInstanceID);
-        if (m_mapInstanceID2PromiseBallot.end() != itUpper)
-        {
-            llEndPromiseInstanceID = itUpper->first;
-        }
-        return itLower->second;
-    }
-    else if (m_mapInstanceID2PromiseBallot.begin() == itLower)
-    {
-        llEndPromiseInstanceID = itLower->first;
-        return BallotNumber();
-    }
-    else
-    {
-        llEndPromiseInstanceID = itLower->first;
-        --itLower;
-        return itLower->second;
-    }
+
+    return --it;
 }
 
 void Group :: OnReceiveCheckpointMsg(const CheckpointMsg & oCheckpointMsg)
@@ -463,6 +453,36 @@ void Group :: OnReceive(const std::string & sBuffer)
     }
 }
 
+void Group :: SetPromiseInfo(const uint64_t llPromiseInstanceID, const uint64_t llEndPromiseInstanceID)
+{
+    m_setPromiseInstanceID.insert(llPromiseInstanceID);
+    if (m_setPromiseInstanceID.size() > GetMaxWindowSize())
+    {
+        m_setPromiseInstanceID.erase(m_setPromiseInstanceID.begin());
+    }
+
+    m_setEndPromiseInstanceID.insert(llEndPromiseInstanceID);
+    if (m_setEndPromiseInstanceID.size() > GetMaxWindowSize())
+    {
+        m_setEndPromiseInstanceID.erase(m_setEndPromiseInstanceID.begin());
+    }
+}
+
+bool Group :: NeedPrepare(const uint64_t llInstanceID)
+{
+    if (m_setEndPromiseInstanceID.end() == m_setEndPromiseInstanceID.find(llInstanceID))
+    {
+        return true;
+    }
+
+    auto it = m_setPromiseInstanceID.upper_bound(llInstanceID);
+    if (m_setPromiseInstanceID.begin() == it)
+    {
+        return true;
+    }
+
+    return false;
+}
 
 
 void Group :: GetMaxInstanceIDFromLog(uint64_t & llMaxInstanceID)

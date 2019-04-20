@@ -46,16 +46,6 @@ void AcceptorState :: Init()
     m_iChecksum = 0;
 }
 
-const BallotNumber & AcceptorState :: GetPromiseBallot() const
-{
-    return m_oPromiseBallot;
-}
-
-void AcceptorState :: SetPromiseBallot(const BallotNumber & oPromiseBallot)
-{
-    m_oPromiseBallot = oPromiseBallot;
-}
-
 const BallotNumber & AcceptorState :: GetAcceptedBallot() const
 {
     return m_oAcceptedBallot;
@@ -173,7 +163,7 @@ int Acceptor :: OnPrepare(const PaxosMsg & oPaxosMsg)
     BallotNumber oBallot(oPaxosMsg.proposalid(), oPaxosMsg.nodeid());
 
     uint64_t llEndPromiseInstanceID;
-    auto oPromiseBallot = m_poGroup->GetPromiseBallot(GetInstanceID(), llEndPromiseInstanceID);
+    auto oPromiseBallot = m_poGroup->GetPromiseBallotForAcceptor(GetInstanceID(), llEndPromiseInstanceID);
 
     oReplyPaxosMsg.set_endpromiseinstanceid(llEndPromiseInstanceID);
 
@@ -185,7 +175,7 @@ int Acceptor :: OnPrepare(const PaxosMsg & oPaxosMsg)
                 oPromiseBallot.m_llNodeID,
                 m_oAcceptorState.GetAcceptedBallot().m_llProposalID,
                 m_oAcceptorState.GetAcceptedBallot().m_llNodeID);
-        
+
         oReplyPaxosMsg.set_preacceptid(m_oAcceptorState.GetAcceptedBallot().m_llProposalID);
         oReplyPaxosMsg.set_preacceptnodeid(m_oAcceptorState.GetAcceptedBallot().m_llNodeID);
 
@@ -194,8 +184,7 @@ int Acceptor :: OnPrepare(const PaxosMsg & oPaxosMsg)
             oReplyPaxosMsg.set_value(m_oAcceptorState.GetAcceptedValue());
         }
 
-        m_poGroup->SetPromiseBallot(oBallot);
-        m_oAcceptorState.SetPromiseBallot(oBallot);
+        m_poGroup->SetPromiseBallotForAcceptor(GetInstanceID(), oBallot);
 
         int ret = m_oAcceptorState.Persist(GetInstanceID(), GetLastChecksum());
         if (ret != 0)
@@ -217,7 +206,7 @@ int Acceptor :: OnPrepare(const PaxosMsg & oPaxosMsg)
                 oPromiseBallot.m_llProposalID, 
                 oPromiseBallot.m_llNodeID);
         
-        oReplyPaxosMsg.set_rejectbypromiseid(m_oAcceptorState.GetPromiseBallot().m_llProposalID);
+        oReplyPaxosMsg.set_rejectbypromiseid(oPromiseBallot.m_llProposalID);
     }
 
     nodeid_t iReplyNodeID = oPaxosMsg.nodeid();
@@ -246,7 +235,7 @@ void Acceptor :: OnAccept(const PaxosMsg & oPaxosMsg)
     BallotNumber oBallot(oPaxosMsg.proposalid(), oPaxosMsg.nodeid());
 
     uint64_t llEndPromiseInstanceID;
-    auto oPromiseBallot = m_poGroup->GetPromiseBallot(GetInstanceID(), llEndPromiseInstanceID);
+    auto oPromiseBallot = m_poGroup->GetPromiseBallotForAcceptor(GetInstanceID(), llEndPromiseInstanceID);
 
     oReplyPaxosMsg.set_endpromiseinstanceid(llEndPromiseInstanceID);
 
@@ -259,8 +248,6 @@ void Acceptor :: OnAccept(const PaxosMsg & oPaxosMsg)
                 m_oAcceptorState.GetAcceptedBallot().m_llProposalID,
                 m_oAcceptorState.GetAcceptedBallot().m_llNodeID);
 
-        m_poGroup->SetPromiseBallot(oBallot);
-        m_oAcceptorState.SetPromiseBallot(oBallot);
         m_oAcceptorState.SetAcceptedBallot(oBallot);
         m_oAcceptorState.SetAcceptedValue(oPaxosMsg.value());
         

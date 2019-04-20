@@ -56,6 +56,7 @@ public:
 public:
     std::string m_sValue;
 
+    uint64_t m_llProposalID{-1};
     BallotNumber m_oHighestOtherPreAcceptBallot;
 
     Config * m_poConfig;
@@ -132,8 +133,6 @@ public:
     TimeStat m_oTimeStat;
 
     Group * m_poGroup;
-
-    uint64_t m_llEndPromiseInstanceID{-1};
 };
     
 }

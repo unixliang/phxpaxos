@@ -37,9 +37,6 @@ public:
 
     void Init();
 
-    const BallotNumber & GetPromiseBallot() const;
-    void SetPromiseBallot(const BallotNumber & oPromiseBallot);
-
     const BallotNumber & GetAcceptedBallot() const;
     void SetAcceptedBallot(const BallotNumber & oAcceptedBallot);
 
@@ -51,7 +48,6 @@ public:
     int Persist(const uint64_t llInstanceID, const uint32_t iLastChecksum);
 
 //private:
-    BallotNumber m_oPromiseBallot; // range
     BallotNumber m_oAcceptedBallot;
     std::string m_sAcceptedValue;
     uint32_t m_iChecksum;
