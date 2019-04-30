@@ -28,7 +28,7 @@ namespace phxpaxos
 {
 
 Committer :: Committer(Config * poConfig, CommitCtx * poCommitCtx, IOLoop * poIOLoop, SMFac * poSMFac)
-    : m_poConfig(poConfig), m_poCommitCtx(poCommitCtx), m_poIOLoop(poIOLoop), m_poSMFac(poSMFac), m_iTimeoutMs(-1)
+    : m_poConfig(poConfig), m_poIOLoop(poIOLoop), m_poSMFac(poSMFac), m_iTimeoutMs(-1)
 {
     m_llLastLogTime = Time::GetSteadyClockMS();
 }
@@ -132,10 +132,11 @@ int Committer :: NewValueGetIDNoRetry(const std::string & sValue, uint64_t & llI
     string sPackSMIDValue = sValue;
     m_poSMFac->PackPaxosValue(sPackSMIDValue, iSMID);
 
-    m_poCommitCtx->NewCommit(&sPackSMIDValue, poSMCtx, iLeftTimeoutMs);
-    m_poIOLoop->AddNotify();
+    std::shared_ptr<CommitCtx> poCommitCtx = make_shared<CommitCtx>();
+    poCommitCtx->NewCommit(&sPackSMIDValue, poSMCtx, iLeftTimeoutMs);
+    m_poIOLoop->AddNotify(poCommitCtx);
 
-    int ret = m_poCommitCtx->GetResult(llInstanceID);
+    int ret = poCommitCtx->GetResult(llInstanceID);
 
     m_oWaitLock.UnLock();
     return ret;

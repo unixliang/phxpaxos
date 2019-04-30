@@ -75,7 +75,7 @@ public:
             const Group * poGroup);
     ~Proposer();
 
-    virtual void InitForNewPaxosInstance();
+    void Init(uint64_t llNowInstanceID);
 
     int NewValue(const std::string & sValue);
     

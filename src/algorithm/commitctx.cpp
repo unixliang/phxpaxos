@@ -159,6 +159,16 @@ const int CommitCtx :: GetTimeoutMs() const
     return m_iTimeoutMs;
 }
 
+void CommitCtx :: SetCommitTimerID(const uint32_t iCommitTimerID)
+{
+    m_iCommitTimerID = iCommitTimerID;
+}
+
+uint32_t CommitCtx :: GetCommitTimerID() const
+{
+    return m_iCommitTimerID;
+}
+
 }
 
 

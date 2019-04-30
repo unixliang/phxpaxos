@@ -113,9 +113,7 @@ Proposer :: Proposer(
     m_bIsPreparing = false;
     m_bIsAccepting = false;
 
-    m_bCanSkipPrepare = false;
-
-    InitForNewPaxosInstance();
+    m_bCanSkipPrepare = true;
 
     m_iPrepareTimerID = 0;
     m_iAcceptTimerID = 0;
@@ -135,8 +133,10 @@ void Proposer :: SetStartProposalID(const uint64_t llProposalID)
 {
 }
 
-void Proposer :: InitForNewPaxosInstance()
+void Proposer :: Init(uint64_t llNowInstanceID)
 {
+    SetInstanceID(llNowInstanceID);
+
     m_oMsgCounter.StartNewRound();
     m_oProposerState.Init();
 
@@ -405,7 +405,7 @@ void Proposer :: Accept()
     oPaxosMsg.set_nodeid(m_poConfig->GetMyNodeID());
     oPaxosMsg.set_proposalid(m_oProposerState.GetProposalID());
     oPaxosMsg.set_value(m_oProposerState.GetValue());
-    oPaxosMsg.set_lastchecksum(GetLastChecksum());
+    oPaxosMsg.set_lastchecksum(0);
 
     m_oMsgCounter.StartNewRound();
 
@@ -466,7 +466,7 @@ void Proposer :: OnAcceptReply(const PaxosMsg & oPaxosMsg)
         BP->GetProposerBP()->AcceptPass(iUseTimeMs);
         PLGImp("[Pass] Start send learn, usetime %dms", iUseTimeMs);
         ExitAccept();
-        m_poLearner->ProposerSendSuccess(GetInstanceID(), m_oProposerState.GetProposalID());
+        m_poLearner->ProposerSendSuccess(GetInstanceID(), m_oProposerState.GetProposalID(), 0, BroadcastMessage_Type_RunSelf_Only);
     }
     else if (m_oMsgCounter.IsRejectedOnThisRound()
             || m_oMsgCounter.IsAllReceiveOnThisRound())

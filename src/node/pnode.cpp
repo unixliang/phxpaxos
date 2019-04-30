@@ -389,7 +389,7 @@ int PNode :: OnReceiveMessage(const char * pcMessage, const int iMessageLen)
         return Paxos_GroupIdxWrong;
     }
 
-    return m_vecGroupList[iGroupIdx]->GetInstance()->OnReceiveMessage(pcMessage, iMessageLen);
+    return m_vecGroupList[iGroupIdx]->OnReceiveMessage(pcMessage, iMessageLen);
 }
 
 void PNode :: AddStateMachine(StateMachine * poSM)

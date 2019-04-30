@@ -59,9 +59,7 @@ public:
 
     Config * GetConfig();
 
-    Instance * GetInstanceByInstanceID(uint64_t llInstanceID);
-
-    Instance * GetCurrentInstance();
+    Instance * GetInstance(uint64_t llInstanceID);
 
     Committer * GetCommitter();
 
@@ -89,11 +87,28 @@ public:
 
     void OnReceive(const std::string & sBuffer);
 
+    void ReceiveMsgForLearner(const PaxosMsg & oPaxosMsg);
 
 
     void SetPromiseInfo(const uint64_t llPromiseInstanceID, const uint64_t llEndPromiseInstanceID);
 
     bool NeedPrepare(const uint64_t llInstanceID);
+
+    Learner * GetLearner();
+
+    bool HasIdleInstance(uint64_t & llInstanceID);
+
+    void AddTimeoutInstance(const uint64_t llInstaceID);
+    bool HasTimeoutInstance(uint64_t & llInstanceID);
+
+    int NewValue(const uint64_t llInstanceID, const std::string & sValue);
+
+    void NewIdleInstance();
+
+    //this funciton only enqueue, do nothing.
+    int OnReceiveMessage(const char * pcMessage, const int iMessageLen);
+
+    IOLoop * GetIOLoop() const;
 
 private:
     int GetMaxInstanceIDFromLog(uint64_t & llMaxInstanceID);
@@ -107,16 +122,18 @@ private:
 
     Communicate m_oCommunicate;
     Config m_oConfig;
-    std::vector<Instance> m_vecInstances;
-    uint32_t m_iMaxWindowSize{10};
+    std::map<uint64_t, Instance> m_mapInstances;
+    uint32_t m_iMaxWindowSize{100};
 
     int m_iInitRet{0};
     std::thread * m_poThread;
 
     CheckpointMgr m_oCheckpointMgr;
+    Learner m_oLearner;
     SMFac m_oSMFac;
 
     uint64_t m_llNowInstanceID{-1};
+    uint64_t m_llNowIdleInstanceID{-1};
     uint32_t m_iLastChecksum{0};
 
     uint64_t m_llProposalID{0}; // for proposer Prepare/Accept
@@ -128,7 +145,13 @@ private:
 
     std::map<uint64_t, BallotNumber> m_mapInstanceID2PromiseBallot; // for acceptor OnPrepare
 
+    Committer m_oCommitter;
 
+    bool m_bStarted{false};
+
+    IOLoop m_oIOLoop;
+
+    std::set<uint64_t> m_seTimeoutInstnaceList;
 };
     
 }

@@ -65,8 +65,12 @@ void IOLoop :: run()
     }
 }
 
-void IOLoop :: AddNotify()
+void IOLoop :: AddNotify(std::shared_ptr<CommitCtx> & poCommitCtx)
 {
+    m_oCommitCtxQueue.lock();
+    m_oCommitCtxQueue.add(poCommitCtx);
+    m_oCommitCtxQueue.unlock();
+
     m_oMessageQueue.lock();
     m_oMessageQueue.add(nullptr);
     m_oMessageQueue.unlock();
@@ -177,6 +181,108 @@ void IOLoop :: DealWithRetry()
     }
 }
 
+void IOLoop :: CheckNewValue()
+{
+    uint64_t llInstanceID{-1};
+    bool use_idle_instance{false};
+    if (!m_poGroup->HasTimeoutInstance(llInstanceID)) {
+        use_idle_instance = m_poGroup->HasIdleInstance(llInstanceID);
+    }
+    if (-1 == llInstanceID) {
+        return;
+    }
+
+    shared_ptr<CommitCtx> poCommitCtx;
+
+    m_oCommitCtxQueue.lock();
+    if (m_oCommitCtxQueue.empty())
+    {
+        m_oCommitCtxQueue.unlock();
+        return;
+    }
+
+    m_oCommitCtxQueue.peek(poCommitCtx);
+    m_oCommitCtxQueue.pop();
+
+    m_oCommitCtxQueue.unlock();
+
+    if (nullptr == poCommitCtx)
+    {
+        return;
+    }
+
+    if (!m_poGroup->GetLearner().IsIMLatest())
+    {
+        return;
+    }
+
+    if (m_poConfig->IsIMFollower())
+    {
+        PLGErr("I'm follower, skip this new value");
+        poCommitCtx->SetResultOnlyRet(PaxosTryCommitRet_Follower_Cannot_Commit);
+        return;
+    }
+
+    if (!m_poConfig->CheckConfig())
+    {
+        PLGErr("I'm not in membership, skip this new value");
+        poCommitCtx->SetResultOnlyRet(PaxosTryCommitRet_Im_Not_In_Membership);
+        return;
+    }
+
+    if ((int)poCommitCtx->GetCommitValue().size() > MAX_VALUE_SIZE)
+    {
+        PLGErr("value size %zu to large, skip this new value",
+            poCommitCtx->GetCommitValue().size());
+        poCommitCtx->SetResultOnlyRet(PaxosTryCommitRet_Value_Size_TooLarge);
+        return;
+    }
+
+    poCommitCtx->StartCommit(llInstanceID);
+
+    if (poCommitCtx->GetTimeoutMs() != -1)
+    {
+        // TODO: already timeout?
+        uint32_t iCommitTimerID{0};
+        if (AddTimer(poCommitCtx->GetTimeoutMs(), [this](const uint32_t iTimerID)->void {
+                                                      // Timer_Instance_Commit_Timeout
+                                                      OnNewValueCommitTimeout();
+                                                  }, iCommitTimerID))
+        {
+            poCommitCtx->SetCommitTimerID(iCommitTimerID);
+        }
+    }
+    
+    m_oTimeStat.Point();
+
+    if (m_poConfig->GetIsUseMembership()
+        && (llInstanceID == 0 || m_poConfig->GetGid() == 0)) // TODO: why init system variables?
+    {
+        //Init system variables.
+        PLGHead("Need to init system variables, InstanceID %lu Now.Gid %lu", 
+                llInstanceID, m_poConfig->GetGid());
+
+        uint64_t llGid = OtherUtils::GenGid(m_poConfig->GetMyNodeID());
+        string sInitSVOpValue;
+        int ret = m_poConfig->GetSystemVSM()->CreateGid_OPValue(llGid, sInitSVOpValue);
+        assert(ret == 0);
+
+        m_oSMFac.PackPaxosValue(sInitSVOpValue, m_poConfig->GetSystemVSM()->SMID());
+        m_poGroup->NewValue(llInstanceID, sInitSVOpValue);
+    }
+    else
+    {
+        if (m_oOptions.bOpenChangeValueBeforePropose) {
+            m_oSMFac.BeforePropose(m_poConfig->GetMyGroupIdx(), poCommitCtx->GetCommitValue());
+        }
+        m_poGroup->NewValue(llInstanceID, poCommitCtx->GetCommitValue());
+    }
+
+    if (use_idle_instance) {
+        m_poGroup->NewIdleInstance();
+    }
+}
+
 void IOLoop :: OneLoop(const int iTimeoutMs)
 {
     string *psMessage = nullptr;
@@ -197,7 +303,7 @@ void IOLoop :: OneLoop(const int iTimeoutMs)
         {
             m_iQueueMemSize -= psMessage->size();
 
-            auto poInstance = m_poGroup->GetInstanceByInstanceID(llInstanceID);
+            auto poInstance = m_poGroup->GetInstance(llInstanceID);
             if (poInstance)
             {
                 poInstance->OnReceive(psMessage);
@@ -213,7 +319,7 @@ void IOLoop :: OneLoop(const int iTimeoutMs)
 
     //must put on here
     //because addtimer on this funciton
-    m_poInstance->CheckNewValue();
+    CheckNewValue();
 }
 
 bool IOLoop :: AddTimer(const int iTimeout, Timer::CallbackFunc fCallbackFunc, uint32_t & iTimerID)

@@ -37,30 +37,38 @@ namespace phxpaxos
 class LearnerState
 {
 public:
+    struct LearnStat
+    {
+        BallotNumber oBallot;
+        std::string sValue;
+        uint32_t iLastChecksum{0};
+    };
+
+    std::function<void(uint64_t llInstanceID, const LearnStat & oLearnStat, uint32_t iLastChecksum)> FinishCommitCallbackFunc;
+
     LearnerState(const Config * poConfig, const LogStorage * poLogStorage);
     ~LearnerState();
 
     void Init();
 
+    bool GetPendingCommit(uint64_t & llInstanceID, std::string & sValue);
+    bool FinishCommit(uint64_t & llCommitInstanceID, FinishCommitCallbackFunc fFinishCommitCallbackFunc);
+
     int LearnValue(const uint64_t llInstanceID, const BallotNumber & oLearnedBallot, 
-            const std::string & sValue, const uint32_t iNewChecksum);
+                   const std::string & sValue, uint32_t iLastChecksum);
 
-    void LearnValueWithoutWrite(const uint64_t llInstanceID, 
-            const std::string & sValue, const uint32_t iNewChecksum);
+    void LearnValueWithoutWrite(const uint64_t llInstanceID, const BallotNumber & oLearnedBallot,
+                                const std::string & sValue, uint32_t iLastChecksum);
 
-    const std::string & GetLearnValue();
-
-    const bool GetIsLearned();
-
-    const uint32_t GetNewChecksum() const;
+    void SetCommitInstanceID(const uint64_t llCommitInstanceID);
 
 private:
-    std::string m_sLearnedValue;
-    bool m_bIsLearned;
-    uint32_t m_iNewChecksum;
-
     Config * m_poConfig;
     PaxosLog m_oPaxosLog;
+
+    std::map<uint64_t, LearnStat> m_vecLearnStatList;
+    uint64_t m_llLastInstanceID{-1};
+    uint32_t m_iLastChecksum{0};
 };
 
 ///////////////////////////////////////////////////////
@@ -86,12 +94,6 @@ public:
     void StartLearnerSender();
 
     virtual void InitForNewPaxosInstance();
-
-    const bool IsLearned();
-
-    const std::string & GetLearnValue();
-
-    const uint32_t GetNewChecksum() const;
 
     void Stop();
 
@@ -130,11 +132,17 @@ public:
     //success learn
     virtual void ProposerSendSuccess(
             const uint64_t llLearnInstanceID,
-            const uint64_t llProposalID);
+            const uint64_t llProposalID,
+            const uint32_t iLastChecksum,
+            BroadcastMessage_Type iRunType);
 
     void OnProposerSendSuccess(const PaxosMsg & oPaxosMsg);
 
-    void TransmitToFollower();
+    bool GetPendingCommit(uint64_t & llInstanceID, std::string & sValue);
+    void FinishCommit(uint64_t & llCommitInstanceID);
+
+
+    void TransmitToFollower(uint64_t llInstanceID, const LearnerStat::LearnStat & oLearnStat, uint32_t iLastChecksum);
 
     //learn noop
     void AskforLearn_Noop(const bool bIsStart = false);

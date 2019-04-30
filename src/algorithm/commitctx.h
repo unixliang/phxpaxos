@@ -56,6 +56,9 @@ public:
 public:
     const int GetTimeoutMs() const;
 
+    void SetCommitTimerID(const uint32_t iCommitTimerID);
+    uint32_t GetCommitTimerID() const;
+
 private:
     Config * m_poConfig;
 
@@ -63,6 +66,7 @@ private:
     int m_iCommitRet;
     bool m_bIsCommitEnd;
     int m_iTimeoutMs;
+    uint32_t m_iCommitTimerID{0};
 
     std::string * m_psValue;
     SMCtx * m_poSMCtx;

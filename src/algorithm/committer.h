@@ -60,7 +60,7 @@ private:
 
 private:
     Config * m_poConfig;
-    CommitCtx * m_poCommitCtx;
+
     IOLoop * m_poIOLoop;
     SMFac * m_poSMFac;
 

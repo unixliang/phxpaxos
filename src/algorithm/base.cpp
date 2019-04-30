@@ -52,18 +52,6 @@ void Base :: SetInstanceID(const uint64_t llInstanceID)
     m_llInstanceID = llInstanceID;
 }
 
-void Base :: NewInstance()
-{
-    // TODO: FinishInstance
-    m_llInstanceID++;
-    InitForNewPaxosInstance();
-}
-
-const uint32_t Base :: GetLastChecksum() const
-{
-    return m_poGroup->GetInstanceByInstanceID(m_llInstanceID)->GetLastChecksum();
-}
-
 int Base :: PackMsg(const PaxosMsg & oPaxosMsg, std::string & sBuffer)
 {
     std::string sBodyBuffer;
@@ -218,7 +206,7 @@ int Base :: SendMessage(const nodeid_t iSendtoNodeID, const PaxosMsg & oPaxosMsg
 
     if (iSendtoNodeID == m_poConfig->GetMyNodeID())
     {
-        m_poGroup->GetInstanceByInstanceID(m_llInstanceID)->OnReceivePaxosMsg(oPaxosMsg);
+        m_poGroup->GetInstance(m_llInstanceID)->OnReceivePaxosMsg(oPaxosMsg);
         return 0; 
     }
     
@@ -241,12 +229,16 @@ int Base :: BroadcastMessage(const PaxosMsg & oPaxosMsg, const int iRunType, con
 
     BP->GetInstanceBP()->BroadcastMessage();
 
-    if (iRunType == BroadcastMessage_Type_RunSelf_First)
+    if (iRunType == BroadcastMessage_Type_RunSelf_First || iRunType == BroadcastMessage_Type_RunSelf_Only)
     {
-        if (m_poGroup->GetInstanceByInstanceID(m_llInstanceID)->OnReceivePaxosMsg(oPaxosMsg) != 0)
+        if (m_poGroup->GetInstance(m_llInstanceID)->OnReceivePaxosMsg(oPaxosMsg) != 0)
         {
             return -1;
         }
+    }
+
+    if (iRunType == BroadcastMessage_Type_RunSelf_Only) {
+        return 0;
     }
     
     string sBuffer;
@@ -260,7 +252,7 @@ int Base :: BroadcastMessage(const PaxosMsg & oPaxosMsg, const int iRunType, con
 
     if (iRunType == BroadcastMessage_Type_RunSelf_Final)
     {
-        m_poGroup->GetInstanceByInstanceID(m_llInstanceID)->OnReceivePaxosMsg(oPaxosMsg);
+        m_poGroup->GetInstance(m_llInstanceID)->OnReceivePaxosMsg(oPaxosMsg);
     }
 
     return ret;

@@ -49,11 +49,7 @@ public:
             const Group * poGroup);
     ~Instance();
 
-    int Init();
-
-    void Start();
-
-    void Stop();
+    int Init(uint64_t llNowInstanceID);
 
     int InitLastCheckSum();
 
@@ -61,14 +57,10 @@ public:
 
     const uint64_t GetMinChosenInstanceID();
 
-    const uint32_t GetLastChecksum();
-
     int GetInstanceValue(const uint64_t llInstanceID, std::string & sValue, int & iSMID);
 
 public:
     Acceptor * GetAcceptor();
-
-    Committer * GetCommitter();
 
     Cleaner * GetCheckpointCleaner();
 
@@ -76,14 +68,11 @@ public:
 
     Group * GetGroup();
 
-public:
-    void CheckNewValue();
+    CommitCtx * GetCommitCtx();
 
+public:
     void OnNewValueCommitTimeout();
 
-public:
-    //this funciton only enqueue, do nothing.
-    int OnReceiveMessage(const char * pcMessage, const int iMessageLen);
 
 public:
     int OnReceivePaxosMsg(const PaxosMsg & oPaxosMsg, const bool bIsRetry = false);
@@ -103,8 +92,9 @@ public:
     bool SMExecute(
         const uint64_t llInstanceID, 
         const std::string & sValue, 
-        const bool bIsMyCommit,
         SMCtx * poSMCtx);
+public:
+    int NewValue(const std::string & sValue);
 
 private:
     void ChecksumLogic(const PaxosMsg & oPaxosMsg);
@@ -112,14 +102,8 @@ private:
     int ProtectionLogic_IsCheckpointInstanceIDCorrect(const uint64_t llCPInstanceID, const uint64_t llLogMaxInstanceID);
 
 private:
-    void NewInstance();
-
-private:
     Config * m_poConfig;
     MsgTransport * m_poMsgTransport;
-
-
-    IOLoop m_oIOLoop;
 
     Acceptor m_oAcceptor;
     Learner m_oLearner;
@@ -130,10 +114,10 @@ private:
     uint32_t m_iLastChecksum;
 
 private:
-    CommitCtx m_oCommitCtx;
+    CommitCtx m_poCommitCtx{nullptr};
     uint32_t m_iCommitTimerID;
 
-    Committer m_oCommitter;
+
 
 private:
 
@@ -141,8 +125,6 @@ private:
 private:
     TimeStat m_oTimeStat;
     Options m_oOptions;
-
-    bool m_bStarted;
 
     Group * m_poGroup;
 };

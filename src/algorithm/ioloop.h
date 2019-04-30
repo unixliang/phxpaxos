@@ -46,6 +46,8 @@ public:
 
     void Stop();
 
+    void CheckNewValue();
+
     void OneLoop(const int iTimeoutMs);
 
     void DealWithRetry();
@@ -57,7 +59,7 @@ public:
 
     int AddRetryPaxosMsg(const PaxosMsg & oPaxosMsg);
 
-    void AddNotify();
+    void AddNotify(std::shared_ptr<CommitCtx> & poCommitCtx);
 
 public:
     virtual bool AddTimer(const int iTimeout, Timer::CallbackFunc fCallbackFunc, uint32_t & iTimerID);
@@ -81,6 +83,8 @@ private:
 
     Config * m_poConfig;
     Group * m_poGroup;
+
+    Queue<std::shared_ptr<CommitCtx>> m_oCommitCtxQueue;
 };
     
 }

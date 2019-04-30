@@ -42,8 +42,6 @@ void AcceptorState :: Init()
     m_oAcceptedBallot.reset();
     
     m_sAcceptedValue = "";
-
-    m_iChecksum = 0;
 }
 
 const BallotNumber & AcceptorState :: GetAcceptedBallot() const
@@ -66,22 +64,8 @@ void AcceptorState :: SetAcceptedValue(const std::string & sAcceptedValue)
     m_sAcceptedValue = sAcceptedValue;
 }
 
-const uint32_t AcceptorState :: GetChecksum() const
+int AcceptorState :: Persist(const uint64_t llInstanceID)
 {
-    return m_iChecksum;
-}
-
-int AcceptorState :: Persist(const uint64_t llInstanceID, const uint32_t iLastChecksum)
-{
-    if (llInstanceID > 0 && iLastChecksum == 0)
-    {
-        m_iChecksum = 0;
-    }
-    else if (m_sAcceptedValue.size() > 0)
-    {
-        m_iChecksum = crc32(iLastChecksum, (const uint8_t *)m_sAcceptedValue.data(), m_sAcceptedValue.size(), CRC32SKIP);
-    }
-    
     AcceptorStateData oState;
     oState.set_instanceid(llInstanceID);
     oState.set_promiseid(m_oPromiseBallot.m_llProposalID);
@@ -89,7 +73,7 @@ int AcceptorState :: Persist(const uint64_t llInstanceID, const uint32_t iLastCh
     oState.set_acceptedid(m_oAcceptedBallot.m_llProposalID);
     oState.set_acceptednodeid(m_oAcceptedBallot.m_llNodeID);
     oState.set_acceptedvalue(m_sAcceptedValue);
-    oState.set_checksum(m_iChecksum);
+    oState.set_checksum(0);
 
     WriteOptions oWriteOptions;
     oWriteOptions.bSync = m_poConfig->LogSync();
@@ -113,10 +97,10 @@ int AcceptorState :: Persist(const uint64_t llInstanceID, const uint32_t iLastCh
     }
     
     PLGImp("GroupIdx %d InstanceID %lu PromiseID %lu PromiseNodeID %lu "
-            "AccectpedID %lu AcceptedNodeID %lu ValueLen %zu Checksum %u", 
+            "AccectpedID %lu AcceptedNodeID %lu ValueLen %zu", 
             m_poConfig->GetMyGroupIdx(), llInstanceID, m_oPromiseBallot.m_llProposalID, 
             m_oPromiseBallot.m_llNodeID, m_oAcceptedBallot.m_llProposalID, 
-            m_oAcceptedBallot.m_llNodeID, m_sAcceptedValue.size(), m_iChecksum);
+            m_oAcceptedBallot.m_llNodeID, m_sAcceptedValue.size());
     
     return 0;
 }
@@ -137,8 +121,9 @@ Acceptor :: ~Acceptor()
 {
 }
 
-void Acceptor :: InitForNewPaxosInstance()
+void Acceptor :: Init(uint64_t llNowInstanceID)
 {
+    SetInstanceID(llNowInstanceID);
     m_oAcceptorState.Init();
 }
 
@@ -186,7 +171,7 @@ int Acceptor :: OnPrepare(const PaxosMsg & oPaxosMsg)
 
         m_poGroup->SetPromiseBallotForAcceptor(GetInstanceID(), oBallot);
 
-        int ret = m_oAcceptorState.Persist(GetInstanceID(), GetLastChecksum());
+        int ret = m_oAcceptorState.Persist(GetInstanceID());
         if (ret != 0)
         {
             BP->GetAcceptorBP()->OnPreparePersistFail();
@@ -251,7 +236,7 @@ void Acceptor :: OnAccept(const PaxosMsg & oPaxosMsg)
         m_oAcceptorState.SetAcceptedBallot(oBallot);
         m_oAcceptorState.SetAcceptedValue(oPaxosMsg.value());
         
-        int ret = m_oAcceptorState.Persist(GetInstanceID(), GetLastChecksum());
+        int ret = m_oAcceptorState.Persist(GetInstanceID());
         if (ret != 0)
         {
             BP->GetAcceptorBP()->OnAcceptPersistFail();

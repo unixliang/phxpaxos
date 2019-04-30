@@ -104,6 +104,7 @@ enum BroadcastMessage_Type
     BroadcastMessage_Type_RunSelf_First = 1,
     BroadcastMessage_Type_RunSelf_Final = 2,
     BroadcastMessage_Type_RunSelf_None = 3,
+    BroadcastMessage_Type_RunSelf_Only = 4,
 };
 
 class Base
@@ -115,8 +116,6 @@ public:
 public:
     uint64_t GetInstanceID();
 
-    void NewInstance();
-
     virtual void InitForNewPaxosInstance() = 0;
 
     void SetInstanceID(const uint64_t llInstanceID);
@@ -126,8 +125,7 @@ public:
     int PackCheckpointMsg(const CheckpointMsg & oCheckpointMsg, std::string & sBuffer);
 
 public:
-    const uint32_t GetLastChecksum() const;
-    
+
     void PackBaseMsg(const std::string & sBodyBuffer, const int iCmd, std::string & sBuffer);
 
     static int UnPackBaseMsg(const std::string & sBuffer, Header & oHeader, size_t & iBodyStartPos, size_t & iBodyLen);

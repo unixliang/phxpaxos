@@ -35,6 +35,7 @@ Group :: Group(LogStorage * poLogStorage,
     m_oConfig(poLogStorage, oOptions.bSync, oOptions.iSyncInterval, oOptions.bUseMembership, 
             oOptions.oMyNode, oOptions.vecNodeInfoList, oOptions.vecFollowerNodeInfoList, 
             iGroupIdx, oOptions.iGroupCount, oOptions.pMembershipChangeCallback),
+    m_oIOLoop((Config *)poConfig, this),
     m_oInstance(&m_oConfig, poLogStorage, &m_oCommunicate, oOptions, this),
     m_oSMFac(m_oConfig.GetMyGroupIdx()),
     m_oCheckpointMgr(&m_oConfig, &m_oSMFac, poLogStorage, oOptions.bUseCheckpointReplayer),
@@ -225,6 +226,8 @@ void Group :: Init()
     }
 
 
+    m_llIdleNowInstanceID = m_llNowInstanceID;
+
 }
 
 int Group :: GetInitRet()
@@ -237,12 +240,24 @@ int Group :: GetInitRet()
 
 void Group :: Start()
 {
-    m_oInstance.Start();
+    //start learner sender
+    m_oLearner.StartLearnerSender();
+    //start ioloop
+    m_oIOLoop.start();
+    //start checkpoint replayer and cleaner
+    m_oCheckpointMgr.Start();
+
+    m_bStarted = true;
 }
 
 void Group :: Stop()
 {
-    m_oInstance.Stop();
+    if (m_bStarted)
+    {
+        m_oIOLoop.Stop();
+        m_oCheckpointMgr.Stop();
+        m_oLearner.Stop();
+    }
 }
 
 Config * Group :: GetConfig()
@@ -250,18 +265,21 @@ Config * Group :: GetConfig()
     return &m_oConfig;
 }
 
-Instance * Group :: GetInstanceByInstanceID(uint64_t llInstanceID)
+Instance * Group :: GetInstance(uint64_t llInstanceID)
 {
-    // TODO
-}
+    auto it = m_mapInstances.find(llInstanceID);
+    if (m_mapInstances.end() != it) {
+        return &it->second;
+    }
 
-Instance * GetCurrentInstance() {
-    // TODO
+    auto &oInstance = m_mapInstances[llInstanceID];
+    oInstance.Init(llInstanceID);
+    return &oInstance;
 }
 
 Committer * Group :: GetCommitter()
 {
-    return m_oInstance.GetCommitter();
+    return &m_oCommitter;
 }
 
 Cleaner * Group :: GetCheckpointCleaner()
@@ -297,6 +315,67 @@ void Group :: NewPrepare()
     PLGHead("END New.ProposalID %lu", m_llProposalID);
 }
 
+Learner * Group :: GetLearner()
+{
+    return &m_oLearner;
+}
+
+int Group :: OnReceiveMessage(const char * pcMessage, const int iMessageLen)
+{
+    m_oIOLoop.AddMessage(pcMessage, iMessageLen);
+
+    return 0;
+}
+
+bool Group :: HasIdleInstance(uint64_t & llInstanceID)
+{
+    llInstanceID = -1;
+    if (-1 == m_llNowInstanceID || -1 == m_llNowIdleInstanceID) { // uninit
+        return false;
+    }
+    if (m_llNowIdleInstanceID < m_llNowInstanceID) {
+        return false;
+    }
+    if (m_llNowIdleInstanceID >= m_llNowInstanceID + GetMaxWindowSize()) {
+        return false;
+    }
+
+    llInstanceID = m_llNowIdleInstanceID;
+    return true;
+}
+
+void Group :: AddTimeoutInstance(const uint64_t llInstaceID)
+{
+    m_seTimeoutInstnaceList.insert(llInstaceID);
+}
+
+bool Group :: HasTimeoutInstance(uint64_t & llInstanceID)
+{
+    llInstanceID = -1;
+
+    if (m_seTimeoutInstnaceList.empty()) return false;
+
+    llInstanceID = *m_seTimeoutInstnaceList.begin();
+    m_seTimeoutInstnaceList.erase(m_seTimeoutInstnaceList.begin());
+
+    return true;
+}
+
+
+int Group :: NewValue(const uint64_t llInstanceID, const std::string & sValue)
+{
+    auto poInstance = GetInstance(llInstanceID);
+    if (nullptr == poInstance) {
+        return -1;
+    }
+
+    return poInstance->NewValue(sValue);
+}
+
+void Group :: NewIdleInstance()
+{
+    ++m_llNowIdleInstanceID;
+}
 
 void Group :: SetOtherProposalID(const uint64_t llOtherProposalID)
 {
@@ -345,7 +424,7 @@ void Group :: OnReceiveCheckpointMsg(const CheckpointMsg & oCheckpointMsg)
 {
     PLGImp("Now.InstanceID %lu MsgType %d Msg.from_nodeid %lu My.nodeid %lu flag %d"
             " uuid %lu sequence %lu checksum %lu offset %lu buffsize %zu filepath %s",
-            m_oAcceptor.GetInstanceID(), oCheckpointMsg.msgtype(), oCheckpointMsg.nodeid(),
+            m_llNowInstanceID, oCheckpointMsg.msgtype(), oCheckpointMsg.nodeid(),
             m_oConfig.GetMyNodeID(), oCheckpointMsg.flag(), oCheckpointMsg.uuid(), oCheckpointMsg.sequence(), oCheckpointMsg.checksum(),
             oCheckpointMsg.offset(), oCheckpointMsg.buffer().size(), oCheckpointMsg.filepath().c_str());
 
@@ -427,7 +506,7 @@ void Group :: OnReceive(const std::string & sBuffer)
         }
 
         auto llInstanceID = oPaxosMsg.instanceid();
-        auto poInstance = GetInstanceByInstanceID(llInstanceID);
+        auto poInstance = GetInstance(llInstanceID);
         if (poInstance)
         {
             poInstance->OnReceivePaxosMsg(oPaxosMsg);
@@ -452,6 +531,133 @@ void Group :: OnReceive(const std::string & sBuffer)
         OnReceiveCheckpointMsg(oCheckpointMsg);
     }
 }
+
+
+void Group :: ReceiveMsgForLearner(const PaxosMsg & oPaxosMsg)
+{
+    if (oPaxosMsg.msgtype() == MsgType_PaxosLearner_AskforLearn)
+    {
+        m_oLearner.OnAskforLearn(oPaxosMsg);
+    }
+    else if (oPaxosMsg.msgtype() == MsgType_PaxosLearner_SendLearnValue)
+    {
+        m_oLearner.OnSendLearnValue(oPaxosMsg);
+    }
+    else if (oPaxosMsg.msgtype() == MsgType_PaxosLearner_ProposerSendSuccess)
+    {
+        m_oLearner.OnProposerSendSuccess(oPaxosMsg);
+    }
+    else if (oPaxosMsg.msgtype() == MsgType_PaxosLearner_SendNowInstanceID)
+    {
+        m_oLearner.OnSendNowInstanceID(oPaxosMsg);
+    }
+    else if (oPaxosMsg.msgtype() == MsgType_PaxosLearner_ComfirmAskforLearn)
+    {
+        m_oLearner.OnComfirmAskForLearn(oPaxosMsg);
+    }
+    else if (oPaxosMsg.msgtype() == MsgType_PaxosLearner_SendLearnValue_Ack)
+    {
+        m_oLearner.OnSendLearnValue_Ack(oPaxosMsg);
+    }
+    else if (oPaxosMsg.msgtype() == MsgType_PaxosLearner_AskforCheckpoint)
+    {
+        m_oLearner.OnAskforCheckpoint(oPaxosMsg);
+    }
+
+    ProcessCommit();
+
+}
+
+
+void Group :: ProcessCommit()
+{
+    uint64_t llInstanceID{-1};
+    std::string sValue;
+    while (m_poLearner->GetPendingCommit(llInstanceID, sValue)) {
+        BP->GetInstanceBP()->OnInstanceLearned();
+
+        SMCtx * poSMCtx = nullptr;
+
+        auto poInstance = GetInstance(llInstanceID);
+        if (!poInstance)
+        {
+            PLGErr("poInstance null, instanceid %lu", llInstanceID);
+            return;
+        }
+
+        auto poCommitCtx = poInstance->GetCommitCtx();
+        if (poCommitCtx)
+        {
+            bool bIsMyCommit = poCommitCtx->IsMyCommit(llInstanceID, sValue, poSMCtx);
+
+            if (!bIsMyCommit)
+            {
+                BP->GetInstanceBP()->OnInstanceLearnedNotMyCommit();
+                PLGDebug("this value is not my commit");
+            }
+            else
+            {
+                int iUseTimeMs = m_oTimeStat.Point();
+                BP->GetInstanceBP()->OnInstanceLearnedIsMyCommit(iUseTimeMs);
+                PLGHead("My commit ok, usetime %dms", iUseTimeMs);
+            }
+        }
+
+
+        if (!poInstance->SMExecute(llInstanceID, sValue, poSMCtx))
+        {
+            BP->GetInstanceBP()->OnInstanceLearnedSMExecuteFail();
+
+            PLGErr("SMExecute fail, instanceid %lu, not increase instanceid", llInstanceID);
+            if (poCommitCtx)
+            {
+                poCommitCtx->SetResult(PaxosTryCommitRet_ExecuteFail, 
+                                         llInstanceID, sValue);
+            }
+
+            //m_oProposer.CancelSkipPrepare();
+
+            return;
+        }
+        
+        {
+            if (poCommitCtx)
+            {
+                poCommitCtx->SetResult(PaxosTryCommitRet_OK,
+                                         m_oLearner.GetInstanceID(), m_oLearner.GetLearnValue());
+            }
+
+            //this paxos instance end, tell proposal done
+
+
+            if (poCommitCtx->GetCommitTimerID() > 0)
+            {
+                m_poIOLoop->RemoveTimer(poCommitCtx->GetCommitTimerID());
+                poCommitCtx->SetCommitTimerID(0);
+            }
+        }
+        
+        PLGHead("[Learned] learned instanceid %lu. New paxos starting", llInstanceID);
+
+        m_oCheckpointMgr.SetMaxChosenInstanceID(llInstanceID);
+
+        if (!m_poLearner->FinishCommit(llInstanceID))
+        {
+            PLGErr("FinishCommit fail, instanceid %lu", llInstanceID);
+            return;
+        }
+
+        // increase nowinstanceid
+        if (llInstanceID + 1 > m_llNowInstanceID) {
+            m_llNowInstanceID = llInstanceID + 1;
+        }
+        PLGHead("[Learned] NowInstanceID increase to %lu", m_llNowInstanceID);
+        while (!m_mapInstances.empty() && m_mapInstances.begin().first() < m_llNowInstanceID) {
+            m_mapInstances.erase(m_mapInstances.begin());
+        }
+    }
+}
+
 
 void Group :: SetPromiseInfo(const uint64_t llPromiseInstanceID, const uint64_t llEndPromiseInstanceID)
 {
