@@ -45,7 +45,7 @@ public:
 
     const uint32_t GetChecksum() const;
 
-    int Persist(const uint64_t llInstanceID);
+    int Persist(const uint64_t llInstanceID, const BallotNumber & oPromiseBallot);
 
 //private:
     BallotNumber m_oAcceptedBallot;
@@ -58,6 +58,10 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////
+
+
+class Group;
+class Instance;
 
 class Acceptor : public Base
 {

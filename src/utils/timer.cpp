@@ -36,11 +36,11 @@ Timer :: ~Timer()
 
 void Timer :: AddTimer(const uint64_t llAbsTime, uint32_t & iTimerID)
 {
-    return AddTimerWithType(llAbsTime, iTimerID, nullptr);
+    return AddTimerWithCallbackFunc(llAbsTime, iTimerID, nullptr);
 }
 
-//void Timer :: AddTimerWithType(const uint64_t llAbsTime, uint32_t & iTimerID, const int iType, const uint64_t llInstacneID)
-void Timer :: AddTimerWithType(const uint64_t llAbsTime, CallbackFunc fCallbackFunc, uint32_t & iTimerID)
+//void Timer :: AddTimerWithCallbackFunc(const uint64_t llAbsTime, uint32_t & iTimerID, const int iType, const uint64_t llInstacneID)
+void Timer :: AddTimerWithCallbackFunc(const uint64_t llAbsTime, CallbackFunc fCallbackFunc, uint32_t & iTimerID)
 {
     iTimerID = m_iNowTimerID++;
 

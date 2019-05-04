@@ -391,10 +391,10 @@ uint32_t Group :: GetMaxWindowSize()
 }
 
 
-void Group :: SetPromiseBallotForAcceptor(const uint64_t llInstanceID, const BallotNumber &oBallotNumber)
+void Group :: SetPromiseBallot(const uint64_t llInstanceID, const BallotNumber &oBallotNumber)
 {
     uint64_t llEndPromiseInstanceID{-1};
-    BallotNumber oPromiseBallotNumber = GetPromiseBallotForAcceptor(llInstanceID, llEndPromiseInstanceID);
+    BallotNumber oPromiseBallotNumber = GetPromiseBallot(llInstanceID, llEndPromiseInstanceID);
 
     if (oBallotNumber <= oPromiseBallotNumber) return;
 
@@ -405,7 +405,7 @@ void Group :: SetPromiseBallotForAcceptor(const uint64_t llInstanceID, const Bal
     }
 }
 
-BallotNumber Group :: GetPromiseBallotForAcceptor(const uint64_t llInstanceID, uint64_t & llEndPromiseInstanceID) const
+BallotNumber Group :: GetPromiseBallot(const uint64_t llInstanceID, uint64_t & llEndPromiseInstanceID) const
 {
     llEndPromiseInstanceID = -1;
 

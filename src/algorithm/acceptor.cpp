@@ -20,6 +20,7 @@ See the AUTHORS file for names of contributors.
 */
 
 #include "acceptor.h"
+#include "instance.h"
 #include "paxos_log.h"
 #include "crc32.h"
 
@@ -64,12 +65,12 @@ void AcceptorState :: SetAcceptedValue(const std::string & sAcceptedValue)
     m_sAcceptedValue = sAcceptedValue;
 }
 
-int AcceptorState :: Persist(const uint64_t llInstanceID)
+int AcceptorState :: Persist(const uint64_t llInstanceID, const BallotNumber & oPromiseBallot)
 {
     AcceptorStateData oState;
     oState.set_instanceid(llInstanceID);
-    oState.set_promiseid(m_oPromiseBallot.m_llProposalID);
-    oState.set_promisenodeid(m_oPromiseBallot.m_llNodeID);
+    oState.set_promiseid(oPromiseBallot.m_llProposalID);
+    oState.set_promisenodeid(oPromiseBallot.m_llNodeID);
     oState.set_acceptedid(m_oAcceptedBallot.m_llProposalID);
     oState.set_acceptednodeid(m_oAcceptedBallot.m_llNodeID);
     oState.set_acceptedvalue(m_sAcceptedValue);
@@ -98,8 +99,8 @@ int AcceptorState :: Persist(const uint64_t llInstanceID)
     
     PLGImp("GroupIdx %d InstanceID %lu PromiseID %lu PromiseNodeID %lu "
             "AccectpedID %lu AcceptedNodeID %lu ValueLen %zu", 
-            m_poConfig->GetMyGroupIdx(), llInstanceID, m_oPromiseBallot.m_llProposalID, 
-            m_oPromiseBallot.m_llNodeID, m_oAcceptedBallot.m_llProposalID, 
+            m_poConfig->GetMyGroupIdx(), llInstanceID, oPromiseBallot.m_llProposalID, 
+            oPromiseBallot.m_llNodeID, m_oAcceptedBallot.m_llProposalID, 
             m_oAcceptedBallot.m_llNodeID, m_sAcceptedValue.size());
     
     return 0;
@@ -171,7 +172,7 @@ int Acceptor :: OnPrepare(const PaxosMsg & oPaxosMsg)
 
         m_poGroup->SetPromiseBallotForAcceptor(GetInstanceID(), oBallot);
 
-        int ret = m_oAcceptorState.Persist(GetInstanceID());
+        int ret = m_oAcceptorState.Persist(GetInstanceID(), oBallot);
         if (ret != 0)
         {
             BP->GetAcceptorBP()->OnPreparePersistFail();
@@ -233,10 +234,11 @@ void Acceptor :: OnAccept(const PaxosMsg & oPaxosMsg)
                 m_oAcceptorState.GetAcceptedBallot().m_llProposalID,
                 m_oAcceptorState.GetAcceptedBallot().m_llNodeID);
 
+        m_poGroup->SetPromiseBallotForAcceptor(GetInstanceID(), oBallot);
         m_oAcceptorState.SetAcceptedBallot(oBallot);
         m_oAcceptorState.SetAcceptedValue(oPaxosMsg.value());
         
-        int ret = m_oAcceptorState.Persist(GetInstanceID());
+        int ret = m_oAcceptorState.Persist(GetInstanceID(), oBallot);
         if (ret != 0)
         {
             BP->GetAcceptorBP()->OnAcceptPersistFail();

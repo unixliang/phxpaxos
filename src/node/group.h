@@ -77,9 +77,9 @@ public:
 
     uint32_t GetMaxWindowSize();
 
-    void SetPromiseBallotForAcceptor(const uint64_t llInstanceID, const BallotNumber &oBallotNumber);
+    void SetPromiseBallot(const uint64_t llInstanceID, const BallotNumber &oBallotNumber);
 
-    BallotNumber GetPromiseBallotForAcceptor(const uint64_t llInstanceID, uint64_t & llEndPromiseInstanceID) const;
+    BallotNumber GetPromiseBallot(const uint64_t llInstanceID, uint64_t & llEndPromiseInstanceID) const;
 
     void OnReceiveCheckpointMsg(const CheckpointMsg & oCheckpointMsg);
 

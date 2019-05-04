@@ -22,7 +22,7 @@ See the AUTHORS file for names of contributors.
 #pragma once
 
 #include <vector>
-#include <function>
+#include <functional>
 #include <inttypes.h>
 
 namespace phxpaxos

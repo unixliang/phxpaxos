@@ -29,6 +29,8 @@ See the AUTHORS file for names of contributors.
 #include <queue>
 #include "config_include.h"
 
+#include "commitctx.h"
+
 namespace phxpaxos
 {
 

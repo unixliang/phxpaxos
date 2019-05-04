@@ -23,6 +23,7 @@ See the AUTHORS file for names of contributors.
 
 #include "base.h"
 #include <string>
+#include <functional>
 #include "commdef.h"
 #include "comm_include.h"
 #include "paxos_log.h"
@@ -37,14 +38,14 @@ namespace phxpaxos
 class LearnerState
 {
 public:
-    struct LearnStat
+    struct LearnState
     {
         BallotNumber oBallot;
         std::string sValue;
         uint32_t iLastChecksum{0};
     };
 
-    std::function<void(uint64_t llInstanceID, const LearnStat & oLearnStat, uint32_t iLastChecksum)> FinishCommitCallbackFunc;
+    std::function<void(uint64_t llInstanceID, const LearnState & oLearnState, uint32_t iLastChecksum)> FinishCommitCallbackFunc;
 
     LearnerState(const Config * poConfig, const LogStorage * poLogStorage);
     ~LearnerState();
@@ -66,7 +67,7 @@ private:
     Config * m_poConfig;
     PaxosLog m_oPaxosLog;
 
-    std::map<uint64_t, LearnStat> m_vecLearnStatList;
+    std::map<uint64_t, LearnState> m_vecLearnStateList;
     uint64_t m_llLastInstanceID{-1};
     uint32_t m_iLastChecksum{0};
 };
@@ -142,7 +143,7 @@ public:
     void FinishCommit(uint64_t & llCommitInstanceID);
 
 
-    void TransmitToFollower(uint64_t llInstanceID, const LearnerStat::LearnStat & oLearnStat, uint32_t iLastChecksum);
+    void TransmitToFollower(uint64_t llInstanceID, const LearnerStat::LearnState & oLearnState, uint32_t iLastChecksum);
 
     //learn noop
     void AskforLearn_Noop(const bool bIsStart = false);

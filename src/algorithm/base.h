@@ -116,8 +116,6 @@ public:
 public:
     uint64_t GetInstanceID();
 
-    virtual void InitForNewPaxosInstance() = 0;
-
     void SetInstanceID(const uint64_t llInstanceID);
 
     int PackMsg(const PaxosMsg & oPaxosMsg, std::string & sBuffer);
