@@ -212,7 +212,7 @@ void Group :: Init()
         m_oLearner.SetInstanceID(m_llNowInstanceID);
         //m_oProposer.SetInstanceID(m_llNowInstanceID);
 
-        m_oCheckpointMgr.SetMaxChosenInstanceID(m_llNowInstanceID);
+        m_oCheckpointMgr.SetMaxCommitInstanceID(m_llNowInstanceID);
 
         m_iInitRet = InitLastCheckSum();
         if (m_iInitRet != 0)
@@ -336,7 +336,7 @@ bool Group :: HasIdleInstance(uint64_t & llInstanceID)
     if (m_llNowIdleInstanceID < m_llNowInstanceID) {
         return false;
     }
-    if (m_llNowIdleInstanceID >= m_llNowInstanceID + GetMaxWindowSize()) {
+    if (m_llNowIdleInstanceID >= m_llNowInstanceID + m_poConfig->GetMaxWindowSize()) {
         return false;
     }
 
@@ -385,12 +385,6 @@ void Group :: SetOtherProposalID(const uint64_t llOtherProposalID)
     }
 }
 
-uint32_t Group :: GetMaxWindowSize()
-{
-    return m_iMaxWindowSize;
-}
-
-
 void Group :: SetPromiseBallot(const uint64_t llInstanceID, const BallotNumber &oBallotNumber)
 {
     uint64_t llEndPromiseInstanceID{-1};
@@ -399,7 +393,7 @@ void Group :: SetPromiseBallot(const uint64_t llInstanceID, const BallotNumber &
     if (oBallotNumber <= oPromiseBallotNumber) return;
 
     m_mapInstanceID2PromiseBallot[llInstanceID] = oBallotNumber;
-    while (m_mapInstanceID2PromiseBallot.size() > GetMaxWindowSize())
+    while (m_mapInstanceID2PromiseBallot.size() > m_poConfig->GetMaxWindowSize())
     {
         m_mapInstanceID2PromiseBallot.erase(m_mapInstanceID2PromiseBallot.begin());
     }
@@ -639,7 +633,7 @@ void Group :: ProcessCommit()
         
         PLGHead("[Learned] learned instanceid %lu. New paxos starting", llInstanceID);
 
-        m_oCheckpointMgr.SetMaxChosenInstanceID(llInstanceID);
+        m_oCheckpointMgr.SetMaxCommitInstanceID(llInstanceID);
 
         if (!m_poLearner->FinishCommit(llInstanceID))
         {
@@ -662,13 +656,13 @@ void Group :: ProcessCommit()
 void Group :: SetPromiseInfo(const uint64_t llPromiseInstanceID, const uint64_t llEndPromiseInstanceID)
 {
     m_setPromiseInstanceID.insert(llPromiseInstanceID);
-    if (m_setPromiseInstanceID.size() > GetMaxWindowSize())
+    if (m_setPromiseInstanceID.size() > m_poConfig->GetMaxWindowSize())
     {
         m_setPromiseInstanceID.erase(m_setPromiseInstanceID.begin());
     }
 
     m_setEndPromiseInstanceID.insert(llEndPromiseInstanceID);
-    if (m_setEndPromiseInstanceID.size() > GetMaxWindowSize())
+    if (m_setEndPromiseInstanceID.size() > m_poConfig->GetMaxWindowSize())
     {
         m_setEndPromiseInstanceID.erase(m_setEndPromiseInstanceID.begin());
     }

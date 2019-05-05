@@ -107,11 +107,11 @@ void Cleaner :: run()
 
         uint64_t llInstanceID = m_poCheckpointMgr->GetMinChosenInstanceID();
         uint64_t llCPInstanceID = m_poSMFac->GetCheckpointInstanceID(m_poConfig->GetMyGroupIdx()) + 1;
-        uint64_t llMaxChosenInstanceID = m_poCheckpointMgr->GetMaxChosenInstanceID();
+        uint64_t llMaxCommitInstanceID = m_poCheckpointMgr->GetMaxCommitInstanceID();
 
         int iDeleteCount = 0;
-        while ((llInstanceID + m_llHoldCount < llCPInstanceID)
-                && (llInstanceID + m_llHoldCount < llMaxChosenInstanceID))
+        while ((llInstanceID + m_llHoldCount + m_poConfig->GetMaxWindowSize() < llCPInstanceID)
+                && (llInstanceID + m_llHoldCount + m_poConfig->GetMaxWindowSize() < llMaxCommitInstanceID))
         {
             bool bDeleteRet = DeleteOne(llInstanceID);
             if (bDeleteRet)
@@ -134,13 +134,13 @@ void Cleaner :: run()
 
         if (llCPInstanceID == 0)
         {
-            PLGStatus("sleep a while, max deleted instanceid %lu checkpoint instanceid (no checkpoint) now instanceid %lu",
-                    llInstanceID, m_poCheckpointMgr->GetMaxChosenInstanceID());
+            PLGStatus("sleep a while, max deleted instanceid %lu checkpoint instanceid (no checkpoint) max commit instanceid %lu",
+                    llInstanceID, m_poCheckpointMgr->GetMaxCommitInstanceID());
         }
         else
         {
-            PLGStatus("sleep a while, max deleted instanceid %lu checkpoint instanceid %lu now instanceid %lu",
-                    llInstanceID, llCPInstanceID, m_poCheckpointMgr->GetMaxChosenInstanceID());
+            PLGStatus("sleep a while, max deleted instanceid %lu checkpoint instanceid %lu max commit instanceid %lu",
+                    llInstanceID, llCPInstanceID, m_poCheckpointMgr->GetMaxCommitInstanceID());
         }
 
         Time::MsSleep(OtherUtils::FastRand() % 500 + 500);

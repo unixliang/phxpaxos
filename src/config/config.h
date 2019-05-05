@@ -105,6 +105,9 @@ public:
 
     const size_t GetMyFollowerCount();
 
+public:
+    uint32_t GetMaxWindowSize() const;
+    
 private:
     bool m_bLogSync;
     int m_iSyncInterval;
@@ -125,6 +128,8 @@ private:
 
     std::map<nodeid_t, uint64_t> m_mapTmpNodeOnlyForLearn;
     std::map<nodeid_t, uint64_t> m_mapMyFollower;
+
+    uint32_t m_iMaxWindowSize{100};
 };
 
 }

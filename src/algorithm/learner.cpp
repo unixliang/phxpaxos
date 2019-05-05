@@ -217,7 +217,7 @@ void Learner :: Stop()
 
 const bool Learner :: IsIMLatest()
 {
-    return (GetInstanceID() + m_poGroup->GetMaxWindowSize()) >= m_llHighestSeenInstanceID;
+    return (GetInstanceID() + m_poConfig->GetMaxWindowSize()) >= m_llHighestSeenInstanceID;
 }
 
 const uint64_t Learner :: GetSeenLatestInstanceID()

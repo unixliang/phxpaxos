@@ -253,6 +253,11 @@ const size_t Config :: GetMyFollowerCount()
     return m_mapMyFollower.size();
 }
 
+uint32_t Config :: GetMaxWindowSize() const
+{
+    return m_iMaxWindowSize;
+}
+
 const bool Config :: LogSync() const
 {
     return m_bLogSync;

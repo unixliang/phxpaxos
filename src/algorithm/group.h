@@ -75,8 +75,6 @@ public:
 
     void SetOtherProposalID(const uint64_t llOtherProposalID);
 
-    uint32_t GetMaxWindowSize();
-
     void SetPromiseBallot(const uint64_t llInstanceID, const BallotNumber &oBallotNumber);
 
     BallotNumber GetPromiseBallot(const uint64_t llInstanceID, uint64_t & llEndPromiseInstanceID) const;

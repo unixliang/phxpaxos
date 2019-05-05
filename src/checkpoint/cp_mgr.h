@@ -66,9 +66,9 @@ public:
 
     const uint64_t GetCheckpointInstanceID() const;
 
-    const uint64_t GetMaxChosenInstanceID() const;
+    const uint64_t GetMaxCommitInstanceID() const;
 
-    void SetMaxChosenInstanceID(const uint64_t llMaxChosenInstanceID);
+    void SetMaxCommitInstanceID(const uint64_t llMaxCommitInstanceID);
 
 private:
     Config * m_poConfig;
@@ -79,7 +79,7 @@ private:
     Cleaner m_oCleaner;
 
     uint64_t m_llMinChosenInstanceID;
-    uint64_t m_llMaxChosenInstanceID;
+    uint64_t m_llMaxCommitInstanceID;
 
 private:
     bool m_bInAskforCheckpointMode;
