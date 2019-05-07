@@ -24,6 +24,8 @@ See the AUTHORS file for names of contributors.
 #include "acceptor.h"
 #include "learner.h"
 
+using namespace std;
+
 namespace phxpaxos
 {
 
@@ -32,11 +34,10 @@ Instance :: Instance(
         const LogStorage * poLogStorage,
         const MsgTransport * poMsgTransport,
         const Options & oOptions,
-        const Group * poGroup)
+        Group * poGroup)
     :
-    m_oIOLoop((Config *)poConfig, this),
-    m_oAcceptor(poConfig, poMsgTransport, this, poLogStorage, poGroup),
-    m_oProposer(poConfig, poMsgTransport, this, &m_oIOLoop, poGroup),
+    m_oAcceptor(poConfig, poMsgTransport, poLogStorage, poGroup),
+    m_oProposer(poConfig, poMsgTransport, poGroup),
     m_oPaxosLog(poLogStorage),
     m_oOptions(oOptions),
     m_poGroup(poGroup)
@@ -44,7 +45,6 @@ Instance :: Instance(
     m_poConfig = (Config *)poConfig;
     m_poMsgTransport = (MsgTransport *)poMsgTransport;
     m_iCommitTimerID = 0;
-    m_iLastChecksum = 0;
 }
 
 Instance :: ~Instance()
@@ -52,46 +52,33 @@ Instance :: ~Instance()
     PLGHead("Instance Deleted, GroupIdx %d.", m_poConfig->GetMyGroupIdx());
 }
 
-int Instance :: Init(uint64_t llNowInstanceID)
+int Instance :: Init(uint64_t llInstanceID)
 {
-    PLGImp("NowInstanceID %lu", llNowInstanceID);
+    PLGImp("NowInstanceID %lu", llInstanceID);
 
     //proposer
-    m_oProposer.Init(llNowInstanceID);
+    m_oProposer.Init(llInstanceID);
 
     //acceptor
-    m_oAcceptor.Init(llNowInstanceID);
+    m_oAcceptor.Init(llInstanceID);
+
+    m_llInstanceID = llInstanceID;
 
     return 0;
 }
-
-const uint32_t Instance :: GetLastChecksum()
-{
-    return m_iLastChecksum;
-}
-
 
 Acceptor * Instance :: GetAcceptor()
 {
     return &m_oAcceptor;
 }
 
-Cleaner * Instance :: GetCheckpointCleaner()
+void Instance :: SetCommitCtx(shared_ptr<CommitCtx> poCommitCtx)
 {
-    return m_oCheckpointMgr.GetCleaner();
+    m_poCommitCtx = poCommitCtx;
 }
 
-Replayer * Instance :: GetCheckpointReplayer()
-{
-    return m_oCheckpointMgr.GetReplayer();
-}
 
-Group * Instance :: GetGroup()
-{
-    return m_poGroup;
-}
-
-CommitCtx * Instance :: GetCommitCtx()
+shared_ptr<CommitCtx> Instance :: GetCommitCtx() const
 {
     return m_poCommitCtx;
 }
@@ -108,11 +95,11 @@ void Instance :: OnNewValueCommitTimeout()
     m_oProposer.ExitAccept();
 
     if (m_poCommitCtx) {
-        m_poCommitCtx->SetResult(PaxosTryCommitRet_Timeout, GetInstanceID(), "");
+        m_poCommitCtx->SetResult(PaxosTryCommitRet_Timeout, m_llInstanceID, "");
     }
 
     // for retry later
-    m_poGroup->AddTimeoutInstance(GetInstanceID());
+    m_poGroup->AddTimeoutInstance(m_llInstanceID);
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -122,7 +109,7 @@ int Instance :: OnReceivePaxosMsg(const PaxosMsg & oPaxosMsg, const bool bIsRetr
     BP->GetInstanceBP()->OnReceivePaxosMsg();
 
     PLGImp("Now.InstanceID %lu Msg.InstanceID %lu MsgType %d Msg.from_nodeid %lu My.nodeid %lu Seen.LatestInstanceID %lu",
-           m_oProposer.GetInstanceID(), oPaxosMsg.instanceid(), oPaxosMsg.msgtype(),
+           m_llInstanceID, oPaxosMsg.instanceid(), oPaxosMsg.msgtype(),
            oPaxosMsg.nodeid(), m_poConfig->GetMyNodeID(), m_poGroup->GetLearner()->GetSeenLatestInstanceID());
 
     if (oPaxosMsg.msgtype() == MsgType_PaxosPrepareReply
@@ -170,7 +157,8 @@ int Instance :: OnReceivePaxosMsg(const PaxosMsg & oPaxosMsg, const bool bIsRetr
             || oPaxosMsg.msgtype() == MsgType_PaxosLearner_AskforCheckpoint)
     {
         //ChecksumLogic(oPaxosMsg);
-        return m_poGroup->ReceiveMsgForLearner(oPaxosMsg);
+        m_poGroup->ReceiveMsgForLearner(oPaxosMsg);
+        return 0;
     }
     else
     {
@@ -191,7 +179,7 @@ int Instance :: ReceiveMsgForProposer(const PaxosMsg & oPaxosMsg)
 
     ///////////////////////////////////////////////////////////////
     
-    if (oPaxosMsg.instanceid() != m_oProposer.GetInstanceID())
+    if (oPaxosMsg.instanceid() != m_llInstanceID)
     {
 /*
         if (oPaxosMsg.instanceid() + 1 == m_oProposer.GetInstanceID())
@@ -258,7 +246,7 @@ int Instance :: ReceiveMsgForAcceptor(const PaxosMsg & oPaxosMsg, const bool bIs
     }
     */
             
-    if (oPaxosMsg.instanceid() == m_oAcceptor.GetInstanceID())
+    if (oPaxosMsg.instanceid() == m_llInstanceID)
     {
         if (oPaxosMsg.msgtype() == MsgType_PaxosPrepare)
         {
@@ -309,16 +297,6 @@ int Instance :: NewValue(const std::string & sValue)
 }
 
 
-const uint64_t Instance :: GetNowInstanceID()
-{
-    return m_oAcceptor.GetInstanceID();
-}
-
-const uint64_t Instance :: GetMinChosenInstanceID()
-{
-    return m_oCheckpointMgr.GetMinChosenInstanceID();
-}
-
 ///////////////////////////////
 
 void Instance :: OnTimeout(const uint32_t iTimerID, const int iType)
@@ -333,7 +311,7 @@ void Instance :: OnTimeout(const uint32_t iTimerID, const int iType)
     }
     else if (iType == Timer_Learner_Askforlearn_noop)
     {
-        m_oLearner.AskforLearn_Noop();
+        m_poGroup->GetLearner()->AskforLearn_Noop();
     }
     else if (iType == Timer_Instance_Commit_Timeout)
     {
@@ -347,11 +325,7 @@ void Instance :: OnTimeout(const uint32_t iTimerID, const int iType)
 
 ////////////////////////////////
 
-void Instance :: AddStateMachine(StateMachine * poSM)
-{
-    m_oSMFac.AddSM(poSM);
-}
-
+/*
 bool Instance :: SMExecute(
         const uint64_t llInstanceID, 
         const std::string & sValue, 
@@ -359,6 +333,7 @@ bool Instance :: SMExecute(
 {
     return m_oSMFac.Execute(m_poConfig->GetMyGroupIdx(), llInstanceID, sValue, poSMCtx);
 }
+*/
 
 ////////////////////////////////
 /*
@@ -395,32 +370,7 @@ void Instance :: ChecksumLogic(const PaxosMsg & oPaxosMsg)
 */
 //////////////////////////////////////////
 
-int Instance :: GetInstanceValue(const uint64_t llInstanceID, std::string & sValue, int & iSMID)
-{
-    iSMID = 0;
 
-    if (llInstanceID >= m_oAcceptor.GetInstanceID())
-    {
-        return Paxos_GetInstanceValue_Value_Not_Chosen_Yet;
-    }
-
-    AcceptorStateData oState; 
-    int ret = m_oPaxosLog.ReadState(m_poConfig->GetMyGroupIdx(), llInstanceID, oState);
-    if (ret != 0 && ret != 1)
-    {
-        return -1;
-    }
-
-    if (ret == 1)
-    {
-        return Paxos_GetInstanceValue_Value_NotExist;
-    }
-
-    memcpy(&iSMID, oState.acceptedvalue().data(), sizeof(int));
-    sValue = string(oState.acceptedvalue().data() + sizeof(int), oState.acceptedvalue().size() - sizeof(int));
-
-    return 0;
-}
 
 }
 

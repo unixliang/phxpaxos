@@ -45,7 +45,7 @@ public:
         uint32_t iLastChecksum{0};
     };
 
-    std::function<void(uint64_t llInstanceID, const LearnState & oLearnState, uint32_t iLastChecksum)> FinishCommitCallbackFunc;
+    using FinishCommitCallbackFunc = std::function<void(uint64_t llInstanceID, const LearnState & oLearnState, uint32_t iLastChecksum)>;
 
     LearnerState(const Config * poConfig, const LogStorage * poLogStorage);
     ~LearnerState();
@@ -53,7 +53,7 @@ public:
     void Init();
 
     bool GetPendingCommit(uint64_t & llInstanceID, std::string & sValue);
-    bool FinishCommit(uint64_t & llCommitInstanceID, FinishCommitCallbackFunc fFinishCommitCallbackFunc);
+    bool FinishCommit(const uint64_t llCommitInstanceID, FinishCommitCallbackFunc fFinishCommitCallbackFunc);
 
     int LearnValue(const uint64_t llInstanceID, const BallotNumber & oLearnedBallot, 
                    const std::string & sValue, uint32_t iLastChecksum);
@@ -61,7 +61,7 @@ public:
     void LearnValueWithoutWrite(const uint64_t llInstanceID, const BallotNumber & oLearnedBallot,
                                 const std::string & sValue, uint32_t iLastChecksum);
 
-    void SetCommitInstanceID(const uint64_t llCommitInstanceID);
+    uint64_t GetLastCommitInstanceID();
 
 private:
     Config * m_poConfig;
@@ -70,6 +70,7 @@ private:
     std::map<uint64_t, LearnState> m_vecLearnStateList;
     uint64_t m_llLastInstanceID{-1};
     uint32_t m_iLastChecksum{0};
+    uint64_t m_llLastCommitInstanceID{-1};
 };
 
 ///////////////////////////////////////////////////////
@@ -85,7 +86,7 @@ public:
     Learner(
             const Config * poConfig, 
             const MsgTransport * poMsgTransport,
-            const Group * poGroup,
+            Group * poGroup,
             const LogStorage * poLogStorage,
             const IOLoop * poIOLoop,
             const CheckpointMgr * poCheckpointMgr,
@@ -140,10 +141,10 @@ public:
     void OnProposerSendSuccess(const PaxosMsg & oPaxosMsg);
 
     bool GetPendingCommit(uint64_t & llInstanceID, std::string & sValue);
-    void FinishCommit(uint64_t & llCommitInstanceID);
+    bool FinishCommit(uint64_t & llCommitInstanceID);
 
 
-    void TransmitToFollower(uint64_t llInstanceID, const LearnerStat::LearnState & oLearnState, uint32_t iLastChecksum);
+    void TransmitToFollower(uint64_t llInstanceID, const LearnerState::LearnState & oLearnState, uint32_t iLastChecksum);
 
     //learn noop
     void AskforLearn_Noop(const bool bIsStart = false);
@@ -220,6 +221,8 @@ private:
 
     CheckpointSender * m_poCheckpointSender;
     CheckpointReceiver m_oCheckpointReceiver;
+
+
 };
 
 }

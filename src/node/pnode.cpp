@@ -358,7 +358,7 @@ const uint64_t PNode :: GetNowInstanceID(const int iGroupIdx)
         return (uint64_t)-1;
     }
 
-    return m_vecGroupList[iGroupIdx]->GetInstance()->GetNowInstanceID();
+    return m_vecGroupList[iGroupIdx]->GetNowInstanceID();
 }
 
 const uint64_t PNode :: GetMinChosenInstanceID(const int iGroupIdx)
@@ -368,7 +368,7 @@ const uint64_t PNode :: GetMinChosenInstanceID(const int iGroupIdx)
         return (uint64_t)-1;
     }
 
-    return m_vecGroupList[iGroupIdx]->GetInstance()->GetMinChosenInstanceID();
+    return m_vecGroupList[iGroupIdx]->GetMinChosenInstanceID();
 }
 
 int PNode :: OnReceiveMessage(const char * pcMessage, const int iMessageLen)
@@ -724,9 +724,15 @@ int PNode :: GetInstanceValue(const int iGroupIdx, const uint64_t llInstanceID,
         return Paxos_GroupIdxWrong;
     }
 
+
+    if (llInstanceID >= m_vecGroupList[iGroupIdx]->GetNowInstanceID())
+    {
+        return Paxos_GetInstanceValue_Value_Not_Chosen_Yet; // actually is not commit yet
+    }
+
     string sValue;
     int iSMID = 0;
-    int ret = m_vecGroupList[iGroupIdx]->GetInstance()->GetInstanceValue(llInstanceID, sValue, iSMID);
+    int ret = m_vecGroupList[iGroupIdx]->GetInstanceValue(llInstanceID, sValue, iSMID);
     if (ret != 0)
     {
         return ret;

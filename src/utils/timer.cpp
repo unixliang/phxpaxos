@@ -36,7 +36,7 @@ Timer :: ~Timer()
 
 void Timer :: AddTimer(const uint64_t llAbsTime, uint32_t & iTimerID)
 {
-    return AddTimerWithCallbackFunc(llAbsTime, iTimerID, nullptr);
+    AddTimerWithCallbackFunc(llAbsTime, nullptr, iTimerID);
 }
 
 //void Timer :: AddTimerWithCallbackFunc(const uint64_t llAbsTime, uint32_t & iTimerID, const int iType, const uint64_t llInstacneID)
@@ -68,7 +68,7 @@ const int Timer :: GetNextTimeout() const
     return iNextTimeout;
 }
 
-bool Timer :: PopTimeout(uint32_t & iTimerID, uint64_t & llInstanceID, CallbackFunc & fCallbackFunc)
+bool Timer :: PopTimeout(uint32_t & iTimerID, CallbackFunc & fCallbackFunc)
 {
     if (m_vecTimerHeap.empty())
     {

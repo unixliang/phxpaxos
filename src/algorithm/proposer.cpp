@@ -23,6 +23,7 @@ See the AUTHORS file for names of contributors.
 #include "learner.h"
 #include "phxpaxos/sm.h"
 #include "instance.h"
+#include "group.h"
 
 namespace phxpaxos
 {
@@ -103,12 +104,10 @@ void ProposerState :: ResetHighestOtherPreAcceptBallot()
 Proposer :: Proposer(
         const Config * poConfig, 
         const MsgTransport * poMsgTransport,
-        const Instance * poInstance,
-        const IOLoop * poIOLoop,
-        const Group * poGroup)
-    : Base(poConfig, poMsgTransport, poInstance), m_oProposerState(poConfig), m_oMsgCounter(poConfig), m_poGroup(poGroup)
+        Group * poGroup)
+    : Base(poConfig, poMsgTransport, poGroup), m_oProposerState(poConfig, poGroup), m_oMsgCounter(poConfig), m_poGroup(poGroup)
 {
-    m_poIOLoop = (IOLoop *)poIOLoop;
+    m_poIOLoop = (IOLoop *)poGroup->GetIOLoop();
     
     m_bIsPreparing = false;
     m_bIsAccepting = false;
@@ -129,13 +128,9 @@ Proposer :: ~Proposer()
 {
 }
 
-void Proposer :: SetStartProposalID(const uint64_t llProposalID)
+void Proposer :: Init(uint64_t llInstanceID)
 {
-}
-
-void Proposer :: Init(uint64_t llNowInstanceID)
-{
-    SetInstanceID(llNowInstanceID);
+    SetInstanceID(llInstanceID);
 
     m_oMsgCounter.StartNewRound();
     m_oProposerState.Init();
@@ -255,7 +250,7 @@ void Proposer :: AddAcceptTimer(const int iTimeoutMs)
                 [this](const uint32_t iTimerID)->void {
                     // Timer_Proposer_Accept_Timeout
                     OnAcceptTimeout();
-                }
+                },
                 m_iAcceptTimerID);
         return;
     }
@@ -340,7 +335,7 @@ void Proposer :: OnPrepareReply(const PaxosMsg & oPaxosMsg)
 
     if (oPaxosMsg.rejectbypromiseid() == 0)
     {
-        if (-1 != oPaxosMsg.endpromiseinstanceid())
+        if (NoCheckpoint != oPaxosMsg.endpromiseinstanceid())
         {
             m_poGroup->SetPromiseInfo(GetInstanceID(), oPaxosMsg.endpromiseinstanceid());
         }
@@ -442,7 +437,7 @@ void Proposer :: OnAcceptReply(const PaxosMsg & oPaxosMsg)
 
     if (oPaxosMsg.rejectbypromiseid() == 0)
     {
-        if (-1 != oPaxosMsg.endpromiseinstanceid())
+        if (NoCheckpoint != oPaxosMsg.endpromiseinstanceid())
         {
             m_poGroup->SetPromiseInfo(GetInstanceID(), oPaxosMsg.endpromiseinstanceid());
         }
@@ -466,7 +461,7 @@ void Proposer :: OnAcceptReply(const PaxosMsg & oPaxosMsg)
         BP->GetProposerBP()->AcceptPass(iUseTimeMs);
         PLGImp("[Pass] Start send learn, usetime %dms", iUseTimeMs);
         ExitAccept();
-        m_poLearner->ProposerSendSuccess(GetInstanceID(), m_oProposerState.GetProposalID(), 0, BroadcastMessage_Type_RunSelf_Only);
+        m_poGroup->GetLearner()->ProposerSendSuccess(GetInstanceID(), m_oProposerState.GetProposalID(), 0, BroadcastMessage_Type_RunSelf_Only);
     }
     else if (m_oMsgCounter.IsRejectedOnThisRound()
             || m_oMsgCounter.IsAllReceiveOnThisRound())

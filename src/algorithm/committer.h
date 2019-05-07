@@ -36,7 +36,7 @@ class IOLoop;
 class Committer
 {
 public:
-    Committer(Config * poConfig, CommitCtx * poCommitCtx, IOLoop * poIOLoop, SMFac * poSMFac);
+    Committer(Config * poConfig, IOLoop * poIOLoop, SMFac * poSMFac);
     ~Committer();
 
 public:

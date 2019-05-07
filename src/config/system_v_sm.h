@@ -53,7 +53,7 @@ public:
 
     void GetMembership(NodeInfoList & vecNodeInfoList, uint64_t & llVersion); 
 
-    int CreateGid_OPValue(const uint64_t llGid, std::string & sOpValue);
+    int CreateGid_OPValue(const uint64_t llGid, std::string & sOpValue, const uint32_t iWindowSize);
     
     int Membership_OPValue(const NodeInfoList & vecNodeInfoList, const uint64_t llVersion, std::string & sOpValue);
 

@@ -66,6 +66,7 @@ message SystemVariables
 	required uint64 Gid = 1;
 	repeated PaxosNodeInfo MemberShip = 2;
 	required uint64 Version = 3;
+  required uint32 WindowSize = 4;
 };
 
 message MasterVariables

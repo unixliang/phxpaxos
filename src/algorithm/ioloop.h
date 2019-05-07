@@ -37,6 +37,7 @@ namespace phxpaxos
 #define RETRY_QUEUE_MAX_LEN 300
 
 class Instance;
+class Group;
 
 class IOLoop : public Thread
 {

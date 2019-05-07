@@ -24,10 +24,12 @@ See the AUTHORS file for names of contributors.
 #include "ioloop.h"
 #include "commdef.h"
 
+using namespace std;
+
 namespace phxpaxos
 {
 
-Committer :: Committer(Config * poConfig, CommitCtx * poCommitCtx, IOLoop * poIOLoop, SMFac * poSMFac)
+Committer :: Committer(Config * poConfig, IOLoop * poIOLoop, SMFac * poSMFac)
     : m_poConfig(poConfig), m_poIOLoop(poIOLoop), m_poSMFac(poSMFac), m_iTimeoutMs(-1)
 {
     m_llLastLogTime = Time::GetSteadyClockMS();
@@ -37,18 +39,18 @@ Committer :: ~Committer()
 {
 }
 
-int Committer :: NewValue(const std::string & sValue)
+int Committer :: NewValue(const string & sValue)
 {
     uint64_t llInstanceID = 0;
     return NewValueGetID(sValue, llInstanceID, nullptr);
 }
 
-int Committer :: NewValueGetID(const std::string & sValue, uint64_t & llInstanceID)
+int Committer :: NewValueGetID(const string & sValue, uint64_t & llInstanceID)
 {
     return NewValueGetID(sValue, llInstanceID, nullptr);
 }
 
-int Committer :: NewValueGetID(const std::string & sValue, uint64_t & llInstanceID, SMCtx * poSMCtx)
+int Committer :: NewValueGetID(const string & sValue, uint64_t & llInstanceID, SMCtx * poSMCtx)
 {
     BP->GetCommiterBP()->NewValue();
 
@@ -85,7 +87,7 @@ int Committer :: NewValueGetID(const std::string & sValue, uint64_t & llInstance
     return ret;
 }
 
-int Committer :: NewValueGetIDNoRetry(const std::string & sValue, uint64_t & llInstanceID, SMCtx * poSMCtx)
+int Committer :: NewValueGetIDNoRetry(const string & sValue, uint64_t & llInstanceID, SMCtx * poSMCtx)
 {
     LogStatus();
 
@@ -132,7 +134,7 @@ int Committer :: NewValueGetIDNoRetry(const std::string & sValue, uint64_t & llI
     string sPackSMIDValue = sValue;
     m_poSMFac->PackPaxosValue(sPackSMIDValue, iSMID);
 
-    std::shared_ptr<CommitCtx> poCommitCtx = make_shared<CommitCtx>();
+    shared_ptr<CommitCtx> poCommitCtx = make_shared<CommitCtx>(m_poConfig);
     poCommitCtx->NewCommit(&sPackSMIDValue, poSMCtx, iLeftTimeoutMs);
     m_poIOLoop->AddNotify(poCommitCtx);
 

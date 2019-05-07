@@ -106,6 +106,8 @@ public:
     const size_t GetMyFollowerCount();
 
 public:
+    uint32_t GetWindowSize();
+
     uint32_t GetMaxWindowSize() const;
     
 private:

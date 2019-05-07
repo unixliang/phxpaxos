@@ -40,7 +40,7 @@ public:
     
     void AddTimerWithCallbackFunc(const uint64_t llAbsTime, CallbackFunc fCallbackFunc, uint32_t & iTimerID);
 
-    bool PopTimeout(uint32_t & iTimerID, uint64_t & llInstanceID, CallbackFunc & fCallbackFunc);
+    bool PopTimeout(uint32_t & iTimerID, CallbackFunc & fCallbackFunc);
 
     const int GetNextTimeout() const;
     

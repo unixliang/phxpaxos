@@ -69,12 +69,11 @@ public:
     Acceptor(
             const Config * poConfig, 
             const MsgTransport * poMsgTransport, 
-            const Instance * poInstance,
-            const LogStorage * poLogStorage
-            const Group * poGroup);
+            const LogStorage * poLogStorage,
+            Group * poGroup);
     ~Acceptor();
 
-    void Init(uint64_t llNowInstanceID);
+    void Init(uint64_t llInstanceID);
 
     AcceptorState * GetAcceptorState();
 

@@ -183,100 +183,91 @@ void IOLoop :: DealWithRetry()
 
 void IOLoop :: CheckNewValue()
 {
+    if (!m_poGroup->GetLearner()->IsIMLatest())
+    {
+        return;
+    }
+
     uint64_t llInstanceID{-1};
     bool use_idle_instance{false};
     if (!m_poGroup->HasTimeoutInstance(llInstanceID)) {
         use_idle_instance = m_poGroup->HasIdleInstance(llInstanceID);
     }
-    if (-1 == llInstanceID) {
+    if (NoCheckpoint == llInstanceID) {
         return;
     }
 
-    shared_ptr<CommitCtx> poCommitCtx;
+    int iCommitRet = PaxosTryCommitRet_OK;
 
-    m_oCommitCtxQueue.lock();
-    if (m_oCommitCtxQueue.empty())
-    {
-        m_oCommitCtxQueue.unlock();
-        return;
-    }
-
-    m_oCommitCtxQueue.peek(poCommitCtx);
-    m_oCommitCtxQueue.pop();
-
-    m_oCommitCtxQueue.unlock();
-
-    if (nullptr == poCommitCtx)
-    {
-        return;
-    }
-
-    if (!m_poGroup->GetLearner().IsIMLatest())
-    {
-        return;
-    }
-
-    if (m_poConfig->IsIMFollower())
+    if (PaxosTryCommitRet_OK == iCommitRet && m_poConfig->IsIMFollower())
     {
         PLGErr("I'm follower, skip this new value");
-        poCommitCtx->SetResultOnlyRet(PaxosTryCommitRet_Follower_Cannot_Commit);
-        return;
+        iCommitRet = PaxosTryCommitRet_Follower_Cannot_Commit;
     }
-
-    if (!m_poConfig->CheckConfig())
+    if (PaxosTryCommitRet_OK == iCommitRet && !m_poConfig->CheckConfig())
     {
         PLGErr("I'm not in membership, skip this new value");
-        poCommitCtx->SetResultOnlyRet(PaxosTryCommitRet_Im_Not_In_Membership);
-        return;
+        iCommitRet = PaxosTryCommitRet_Im_Not_In_Membership;
     }
 
-    if ((int)poCommitCtx->GetCommitValue().size() > MAX_VALUE_SIZE)
-    {
-        PLGErr("value size %zu to large, skip this new value",
-            poCommitCtx->GetCommitValue().size());
-        poCommitCtx->SetResultOnlyRet(PaxosTryCommitRet_Value_Size_TooLarge);
-        return;
-    }
-
-    poCommitCtx->StartCommit(llInstanceID);
-
-    if (poCommitCtx->GetTimeoutMs() != -1)
-    {
-        // TODO: already timeout?
-        uint32_t iCommitTimerID{0};
-        if (AddTimer(poCommitCtx->GetTimeoutMs(), [this](const uint32_t iTimerID)->void {
-                                                      // Timer_Instance_Commit_Timeout
-                                                      OnNewValueCommitTimeout();
-                                                  }, iCommitTimerID))
-        {
-            poCommitCtx->SetCommitTimerID(iCommitTimerID);
+    if (0 == llInstanceID) { // proposal system variable first
+        if (PaxosTryCommitRet_OK != iCommitRet) {
+            return;
         }
-    }
-    
-    m_oTimeStat.Point();
 
-    if (m_poConfig->GetIsUseMembership()
-        && (llInstanceID == 0 || m_poConfig->GetGid() == 0)) // TODO: why init system variables?
-    {
         //Init system variables.
         PLGHead("Need to init system variables, InstanceID %lu Now.Gid %lu", 
                 llInstanceID, m_poConfig->GetGid());
 
-        uint64_t llGid = OtherUtils::GenGid(m_poConfig->GetMyNodeID());
+        uint64_t llGid = m_poConfig->GetIsUseMembership() ? OtherUtils::GenGid(m_poConfig->GetMyNodeID()) : 0;
         string sInitSVOpValue;
-        int ret = m_poConfig->GetSystemVSM()->CreateGid_OPValue(llGid, sInitSVOpValue);
+        int ret = m_poConfig->GetSystemVSM()->CreateGid_OPValue(llGid, sInitSVOpValue, m_poConfig->GetMaxWindowSize());
         assert(ret == 0);
 
-        m_oSMFac.PackPaxosValue(sInitSVOpValue, m_poConfig->GetSystemVSM()->SMID());
-        m_poGroup->NewValue(llInstanceID, sInitSVOpValue);
-    }
-    else
-    {
-        if (m_oOptions.bOpenChangeValueBeforePropose) {
-            m_oSMFac.BeforePropose(m_poConfig->GetMyGroupIdx(), poCommitCtx->GetCommitValue());
+        m_poGroup->GetSMFac()->PackPaxosValue(sInitSVOpValue, m_poConfig->GetSystemVSM()->SMID());
+        m_poGroup->NewValue(llInstanceID, sInitSVOpValue, nullptr);
+
+    } else {
+        shared_ptr<CommitCtx> poCommitCtx;
+
+        m_oCommitCtxQueue.lock();
+        if (m_oCommitCtxQueue.empty())
+        {
+            m_oCommitCtxQueue.unlock();
+            return;
         }
-        m_poGroup->NewValue(llInstanceID, poCommitCtx->GetCommitValue());
+
+        m_oCommitCtxQueue.peek(poCommitCtx);
+        m_oCommitCtxQueue.pop();
+
+        m_oCommitCtxQueue.unlock();
+
+        if (nullptr == poCommitCtx)
+        {
+            return;
+        }
+
+        if (PaxosTryCommitRet_OK != iCommitRet) {
+            poCommitCtx->SetResultOnlyRet(iCommitRet);
+            return;
+        }
+
+        if ((int)poCommitCtx->GetCommitValue().size() > MAX_VALUE_SIZE)
+        {
+            PLGErr("value size %zu to large, skip this new value",
+                   poCommitCtx->GetCommitValue().size());
+            poCommitCtx->SetResultOnlyRet(PaxosTryCommitRet_Value_Size_TooLarge);
+            return;
+        }
+
+        poCommitCtx->StartCommit(llInstanceID);
+
+        if (m_poGroup->GetOptions()->bOpenChangeValueBeforePropose) {
+            m_poGroup->GetSMFac()->BeforePropose(m_poConfig->GetMyGroupIdx(), poCommitCtx->GetCommitValue());
+        }
+        m_poGroup->NewValue(llInstanceID, poCommitCtx->GetCommitValue(), poCommitCtx);
     }
+
 
     if (use_idle_instance) {
         m_poGroup->NewIdleInstance();
@@ -303,11 +294,7 @@ void IOLoop :: OneLoop(const int iTimeoutMs)
         {
             m_iQueueMemSize -= psMessage->size();
 
-            auto poInstance = m_poGroup->GetInstance(llInstanceID);
-            if (poInstance)
-            {
-                poInstance->OnReceive(psMessage);
-            }
+            m_poGroup->OnReceive(*psMessage);
         }
 
         delete psMessage;
@@ -330,7 +317,7 @@ bool IOLoop :: AddTimer(const int iTimeout, Timer::CallbackFunc fCallbackFunc, u
     }
     
     uint64_t llAbsTime = Time::GetSteadyClockMS() + iTimeout;
-    m_oTimer.AddTimerWithType(llAbsTime, fCallbackFunc, iTimerID);
+    m_oTimer.AddTimerWithCallbackFunc(llAbsTime, fCallbackFunc, iTimerID);
 
     m_mapTimerIDExist[iTimerID] = true;
 

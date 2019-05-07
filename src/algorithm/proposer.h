@@ -29,10 +29,12 @@ See the AUTHORS file for names of contributors.
 namespace phxpaxos
 {
 
+class Group;
+
 class ProposerState
 {
 public:
-    ProposerState(const Config * poConfig);
+    ProposerState(const Config * poConfig, Group * poGroup);
     ~ProposerState();
 
     void Init();
@@ -60,6 +62,7 @@ public:
     BallotNumber m_oHighestOtherPreAcceptBallot;
 
     Config * m_poConfig;
+    Group * m_poGroup;
 };
 
 //////////////////////////////////////////////////
@@ -70,12 +73,10 @@ public:
     Proposer(
             const Config * poConfig, 
             const MsgTransport * poMsgTransport,
-            const Instance * poInstance,
-            const IOLoop * poIOLoop,
-            const Group * poGroup);
+            Group * poGroup);
     ~Proposer();
 
-    void Init(uint64_t llNowInstanceID);
+    void Init(uint64_t llInstanceID);
 
     int NewValue(const std::string & sValue);
     

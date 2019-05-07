@@ -23,6 +23,7 @@ See the AUTHORS file for names of contributors.
 #include "instance.h"
 #include "paxos_log.h"
 #include "crc32.h"
+#include "group.h"
 
 namespace phxpaxos
 {
@@ -111,10 +112,9 @@ int AcceptorState :: Persist(const uint64_t llInstanceID, const BallotNumber & o
 Acceptor :: Acceptor(
         const Config * poConfig, 
         const MsgTransport * poMsgTransport, 
-        const Instance * poInstance,
         const LogStorage * poLogStorage,
-        const Group * poGroup)
-    : Base(poConfig, poMsgTransport, poInstance), m_oAcceptorState(poConfig, poLogStorage), m_poGroup(poGroup)
+        Group * poGroup)
+    : Base(poConfig, poMsgTransport, poGroup), m_oAcceptorState(poConfig, poLogStorage), m_poGroup(poGroup)
 {
 }
 
@@ -122,9 +122,9 @@ Acceptor :: ~Acceptor()
 {
 }
 
-void Acceptor :: Init(uint64_t llNowInstanceID)
+void Acceptor :: Init(uint64_t llInstanceID)
 {
-    SetInstanceID(llNowInstanceID);
+    SetInstanceID(llInstanceID);
     m_oAcceptorState.Init();
 }
 
@@ -149,7 +149,7 @@ int Acceptor :: OnPrepare(const PaxosMsg & oPaxosMsg)
     BallotNumber oBallot(oPaxosMsg.proposalid(), oPaxosMsg.nodeid());
 
     uint64_t llEndPromiseInstanceID;
-    auto oPromiseBallot = m_poGroup->GetPromiseBallotForAcceptor(GetInstanceID(), llEndPromiseInstanceID);
+    auto oPromiseBallot = m_poGroup->GetPromiseBallot(GetInstanceID(), llEndPromiseInstanceID);
 
     oReplyPaxosMsg.set_endpromiseinstanceid(llEndPromiseInstanceID);
 
@@ -170,7 +170,7 @@ int Acceptor :: OnPrepare(const PaxosMsg & oPaxosMsg)
             oReplyPaxosMsg.set_value(m_oAcceptorState.GetAcceptedValue());
         }
 
-        m_poGroup->SetPromiseBallotForAcceptor(GetInstanceID(), oBallot);
+        m_poGroup->SetPromiseBallot(GetInstanceID(), oBallot);
 
         int ret = m_oAcceptorState.Persist(GetInstanceID(), oBallot);
         if (ret != 0)
@@ -221,7 +221,7 @@ void Acceptor :: OnAccept(const PaxosMsg & oPaxosMsg)
     BallotNumber oBallot(oPaxosMsg.proposalid(), oPaxosMsg.nodeid());
 
     uint64_t llEndPromiseInstanceID;
-    auto oPromiseBallot = m_poGroup->GetPromiseBallotForAcceptor(GetInstanceID(), llEndPromiseInstanceID);
+    auto oPromiseBallot = m_poGroup->GetPromiseBallot(GetInstanceID(), llEndPromiseInstanceID);
 
     oReplyPaxosMsg.set_endpromiseinstanceid(llEndPromiseInstanceID);
 
@@ -234,7 +234,7 @@ void Acceptor :: OnAccept(const PaxosMsg & oPaxosMsg)
                 m_oAcceptorState.GetAcceptedBallot().m_llProposalID,
                 m_oAcceptorState.GetAcceptedBallot().m_llNodeID);
 
-        m_poGroup->SetPromiseBallotForAcceptor(GetInstanceID(), oBallot);
+        m_poGroup->SetPromiseBallot(GetInstanceID(), oBallot);
         m_oAcceptorState.SetAcceptedBallot(oBallot);
         m_oAcceptorState.SetAcceptedValue(oPaxosMsg.value());
         

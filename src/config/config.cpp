@@ -253,6 +253,13 @@ const size_t Config :: GetMyFollowerCount()
     return m_mapMyFollower.size();
 }
 
+uint32_t Config :: GetWindowSize()
+{
+    SystemVariables oVariables;
+    m_oSystemVSM.GetSystemVariables(oVariables);
+    return oVariables.windowsize();
+}
+
 uint32_t Config :: GetMaxWindowSize() const
 {
     return m_iMaxWindowSize;

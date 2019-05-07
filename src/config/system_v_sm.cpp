@@ -53,6 +53,7 @@ int SystemVSM :: Init()
     {
         m_oSystemVariables.set_gid(0);
         m_oSystemVariables.set_version(-1);
+        m_oSystemVariables.set_windowsize(1);
         PLG1Imp("variables not exist");
     }
     else
@@ -174,10 +175,11 @@ int SystemVSM :: Membership_OPValue(const NodeInfoList & vecNodeInfoList, const 
     return 0;
 }
 
-int SystemVSM :: CreateGid_OPValue(const uint64_t llGid, std::string & sOpValue)
+int SystemVSM :: CreateGid_OPValue(const uint64_t llGid, std::string & sOpValue, const uint32_t iWindowSize)
 {
     SystemVariables oVariables = m_oSystemVariables;
     oVariables.set_gid(llGid);
+    oVariables.set_windowsize(iWindowSize);
 
     /*
     ** only founder need to check this. but now all is founder.

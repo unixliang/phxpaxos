@@ -58,7 +58,7 @@ public:
     void Destroy();
 
 public:
-    void AddTimer(const int iTimeoutMs, const int iType, uint32_t & iTimerID);
+    void AddTimer(const int iTimeout, Timer::CallbackFunc fCallbackFunc, uint32_t & iTimerID);
 
     void RemoveTimer(const uint32_t iTimerID);
 

@@ -23,8 +23,8 @@ See the AUTHORS file for names of contributors.
 
 #include "base.h"
 #include "acceptor.h"
-#include "learner.h"
 #include "proposer.h"
+#include "group.h"
 #include "msg_transport.h"
 #include "phxpaxos/sm.h"
 #include "sm_base.h"
@@ -45,30 +45,18 @@ public:
             const Config * poConfig, 
             const LogStorage * poLogStorage,
             const MsgTransport * poMsgTransport,
-            const Options & oOptions
-            const Group * poGroup);
+            const Options & oOptions,
+            Group * poGroup);
     ~Instance();
 
     int Init(uint64_t llNowInstanceID);
 
-    int InitLastCheckSum();
-
-    const uint64_t GetNowInstanceID();
-
-    const uint64_t GetMinChosenInstanceID();
-
-    int GetInstanceValue(const uint64_t llInstanceID, std::string & sValue, int & iSMID);
-
 public:
     Acceptor * GetAcceptor();
 
-    Cleaner * GetCheckpointCleaner();
+    void SetCommitCtx(std::shared_ptr<CommitCtx> poCommitCtx);
 
-    Replayer * GetCheckpointReplayer();
-
-    Group * GetGroup();
-
-    CommitCtx * GetCommitCtx();
+    std::shared_ptr<CommitCtx> GetCommitCtx() const;
 
 public:
     void OnNewValueCommitTimeout();
@@ -87,12 +75,12 @@ public:
     void OnTimeout(const uint32_t iTimerID, const int iType);
 
 public:
-    void AddStateMachine(StateMachine * poSM);
-
+/*
     bool SMExecute(
         const uint64_t llInstanceID, 
         const std::string & sValue, 
         SMCtx * poSMCtx);
+*/
 public:
     int NewValue(const std::string & sValue);
 
@@ -106,17 +94,15 @@ private:
     MsgTransport * m_poMsgTransport;
 
     Acceptor m_oAcceptor;
-    Learner m_oLearner;
     Proposer m_oProposer;
 
     PaxosLog m_oPaxosLog;
 
-    uint32_t m_iLastChecksum;
-
 private:
-    CommitCtx m_poCommitCtx{nullptr};
+    std::shared_ptr<CommitCtx> m_poCommitCtx;
     uint32_t m_iCommitTimerID;
 
+    uint64_t m_llInstanceID;
 
 
 private:

@@ -88,9 +88,9 @@ void Event :: RemoveEvent(const int iEvents)
     }
 }
 
-void Event :: AddTimer(const int iTimeoutMs, const int iType, uint32_t & iTimerID)
+void Event :: AddTimer(const int iTimeout, Timer::CallbackFunc fCallbackFunc, uint32_t & iTimerID)
 {
-    m_poEventLoop->AddTimer(this, iTimeoutMs, iType, iTimerID);
+    m_poEventLoop->AddTimer(this, iTimeout, fCallbackFunc, iTimerID);
 }
 
 void Event :: RemoveTimer(const uint32_t iTimerID)

@@ -21,6 +21,8 @@ See the AUTHORS file for names of contributors.
 
 #include "group.h"
 
+using namespace std;
+
 namespace phxpaxos
 {
 
@@ -30,14 +32,17 @@ Group :: Group(LogStorage * poLogStorage,
             InsideSM * poMasterSM,
             const int iGroupIdx,
             const Options & oOptions) : 
+    m_oOptions(oOptions),
     m_poLogStorage(poLogStorage),
-    m_oCommunicate(&m_oConfig, oOptions.oMyNode.GetNodeID(), oOptions.iUDPMaxSize, poNetWork),
+    m_oPaxosLog(poLogStorage),
+    m_iMyGroupIdx(iGroupIdx),
     m_oConfig(poLogStorage, oOptions.bSync, oOptions.iSyncInterval, oOptions.bUseMembership, 
             oOptions.oMyNode, oOptions.vecNodeInfoList, oOptions.vecFollowerNodeInfoList, 
             iGroupIdx, oOptions.iGroupCount, oOptions.pMembershipChangeCallback),
-    m_oIOLoop((Config *)poConfig, this),
-    m_oInstance(&m_oConfig, poLogStorage, &m_oCommunicate, oOptions, this),
+    m_oCommunicate(&m_oConfig, oOptions.oMyNode.GetNodeID(), oOptions.iUDPMaxSize, poNetWork),
+    m_oIOLoop(&m_oConfig, this),
     m_oSMFac(m_oConfig.GetMyGroupIdx()),
+    m_oCommitter(&m_oConfig, &m_oIOLoop, &m_oSMFac),
     m_oCheckpointMgr(&m_oConfig, &m_oSMFac, poLogStorage, oOptions.bUseCheckpointReplayer),
     m_oLearner(&m_oConfig, &m_oCommunicate, this, poLogStorage, &m_oIOLoop, &m_oCheckpointMgr, &m_oSMFac),
     m_iInitRet(-1), m_poThread(nullptr)
@@ -56,25 +61,25 @@ void Group :: StartInit()
 }
 
 
-int Group :: Load(uint64_t & llInstanceID)
+int Group :: LoadMaxInstanceID(uint64_t & llInstanceID)
 {
     // maybe it has max ballot
     int ret = GetMaxInstanceIDFromLog(llInstanceID);
     if (ret != 0 && ret != 1)
     {
-        PLGErr("Load max instance id fail, ret %d", ret);
+        PLG1Err("Load max instance id fail, ret %d", ret);
         return ret;
     }
 
     if (ret == 1)
     {
-        PLGErr("empty database");
+        PLG1Err("empty database");
         llInstanceID = 0;
         return 0;
     }
 
     AcceptorStateData oState;
-    ret = m_oPaxosLog.ReadState(m_poConfig->GetMyGroupIdx(), llInstanceID, oState);
+    ret = m_oPaxosLog.ReadState(m_iMyGroupIdx, llInstanceID, oState);
     if (ret != 0)
     {
         return ret;
@@ -93,11 +98,12 @@ int Group :: Load(uint64_t & llInstanceID)
     m_iChecksum = oState.checksum();
     */
 
-    PLGImp("GroupIdx %d InstanceID %lu PromiseID %lu PromiseNodeID %lu"
+    PLG1Imp("GroupIdx %d InstanceID %lu PromiseID %lu PromiseNodeID %lu"
            " AccectpedID %lu AcceptedNodeID %lu ValueLen %zu Checksum %u", 
-            m_poConfig->GetMyGroupIdx(), llInstanceID, m_oPromiseBallot.m_llProposalID, 
-            m_oPromiseBallot.m_llNodeID, m_oAcceptedBallot.m_llProposalID, 
-            m_oAcceptedBallot.m_llNodeID, m_sAcceptedValue.size(), m_iChecksum);
+            m_iMyGroupIdx, llInstanceID,
+            oState.promiseid(), oState.promisenodeid(),
+            oState.acceptedid(), oState.acceptednodeid(), 
+            oState.acceptedvalue().size(), oState.checksum());
     
     return 0;
 }
@@ -117,7 +123,7 @@ int Group :: InitLastCheckSum()
     }
 
     AcceptorStateData oState;
-    int ret = m_oPaxosLog.ReadState(m_poConfig->GetMyGroupIdx(), m_llNowInstanceID - 1, oState);
+    int ret = m_oPaxosLog.ReadState(m_iMyGroupIdx, m_llNowInstanceID - 1, oState);
     if (ret != 0 && ret != 1)
     {
         return ret;
@@ -125,14 +131,14 @@ int Group :: InitLastCheckSum()
 
     if (ret == 1)
     {
-        PLGErr("las checksum not exist, now instanceid %lu", m_llNowInstanceID);
+        PLG1Err("las checksum not exist, now instanceid %lu", m_llNowInstanceID);
         m_iLastChecksum = 0;
         return 0;
     }
 
     m_iLastChecksum = oState.checksum();
 
-    PLGImp("ok, last checksum %u", m_iLastChecksum);
+    PLG1Imp("ok, last checksum %u", m_iLastChecksum);
 
     return 0;
 }
@@ -160,21 +166,21 @@ void Group :: Init()
 
     //load max instanceid
     uint64_t llMaxInstanceID{0};
-    int m_iInitRet = GetMaxInstanceIDFromLog(llMaxInstanceID);
+    int m_iInitRet = LoadMaxInstanceID(llMaxInstanceID);
     if (m_iInitRet != 0 && m_iInitRet != 1)
     {
-        //PLGErr("Load max instance id fail, ret %d", ret);
+        //PLG1Err("Load max instance id fail, ret %d", ret);
         return;
     }
 
     if (m_iInitRet == 1)
     {
-        //PLGErr("empty database");
+        //PLG1Err("empty database");
         m_iInitRet = 0;
         llMaxInstanceID = 0;
     }
 
-    //PLGImp("Acceptor.OK, Log.InstanceID %lu Checkpoint.InstanceID %lu", 
+    //PLG1Imp("Acceptor.OK, Log.InstanceID %lu Checkpoint.InstanceID %lu", 
     //        m_oAcceptor.GetInstanceID(), llCPInstanceID);
 
     //playlog
@@ -188,7 +194,7 @@ void Group :: Init()
                 return;
             }
 
-            //PLGImp("PlayLog OK, begin instanceid %lu end instanceid %lu", m_llNowInstanceID, m_oAcceptor.GetInstanceID());
+            //PLG1Imp("PlayLog OK, begin instanceid %lu end instanceid %lu", m_llNowInstanceID, m_oAcceptor.GetInstanceID());
 
             m_llNowInstanceID = llMaxInstanceID;
         }
@@ -199,7 +205,7 @@ void Group :: Init()
                 m_iInitRet = ProtectionLogic_IsCheckpointInstanceIDCorrect(m_llNowInstanceID, llMaxInstanceID);
                 if (m_iInitRet != 0)
                 {
-                    return m_iInitRet;
+                    return;
                 }
                 //m_oAcceptor.InitForNewPaxosInstance();
             }
@@ -207,7 +213,7 @@ void Group :: Init()
             //m_oAcceptor.SetInstanceID(m_llNowInstanceID);
         }
 
-        PLGImp("NowInstanceID %lu", m_llNowInstanceID);
+        PLG1Imp("NowInstanceID %lu", m_llNowInstanceID);
 
         m_oLearner.SetInstanceID(m_llNowInstanceID);
         //m_oProposer.SetInstanceID(m_llNowInstanceID);
@@ -222,11 +228,11 @@ void Group :: Init()
 
         m_oLearner.Reset_AskforLearn_Noop();
 
-        PLGImp("OK");
+        PLG1Imp("OK");
     }
 
 
-    m_llIdleNowInstanceID = m_llNowInstanceID;
+    m_llNowIdleInstanceID = m_llNowInstanceID;
 
 }
 
@@ -269,12 +275,14 @@ Instance * Group :: GetInstance(uint64_t llInstanceID)
 {
     auto it = m_mapInstances.find(llInstanceID);
     if (m_mapInstances.end() != it) {
-        return &it->second;
+        return it->second.get();
     }
 
-    auto &oInstance = m_mapInstances[llInstanceID];
-    oInstance.Init(llInstanceID);
-    return &oInstance;
+    auto ret = m_mapInstances.insert(make_pair(llInstanceID, unique_ptr<Instance>(new Instance(&m_oConfig, m_poLogStorage, &m_oCommunicate, m_oOptions, this))));
+    if (!ret.second) return nullptr;
+
+    ret.first->second->Init(llInstanceID);
+    return ret.first->second.get();
 }
 
 Committer * Group :: GetCommitter()
@@ -284,17 +292,12 @@ Committer * Group :: GetCommitter()
 
 Cleaner * Group :: GetCheckpointCleaner()
 {
-    return m_oInstance.GetCheckpointCleaner();
+    return m_oCheckpointMgr.GetCleaner();
 }
 
 Replayer * Group :: GetCheckpointReplayer()
 {
-    return m_oInstance.GetCheckpointReplayer();
-}
-
-void Group :: AddStateMachine(StateMachine * poSM)
-{
-    m_oInstance.AddStateMachine(poSM);
+    return m_oCheckpointMgr.GetReplayer();
 }
 
 uint64_t Group :: GetProposalID() const
@@ -304,21 +307,27 @@ uint64_t Group :: GetProposalID() const
 
 void Group :: NewPrepare()
 {
-    PLGHead("START ProposalID %lu HighestOther %lu MyNodeID %lu",
-            m_llProposalID, m_llHighestOtherProposalID, m_poConfig->GetMyNodeID());
+    PLG1Head("START ProposalID %lu HighestOther %lu MyNodeID %lu",
+            m_llProposalID, m_llHighestOtherProposalID, m_oConfig.GetMyNodeID());
 
     uint64_t llMaxProposalID =
         m_llProposalID > m_llHighestOtherProposalID ? m_llProposalID : m_llHighestOtherProposalID;
 
     m_llProposalID = llMaxProposalID + 1;
 
-    PLGHead("END New.ProposalID %lu", m_llProposalID);
+    PLG1Head("END New.ProposalID %lu", m_llProposalID);
 }
 
 Learner * Group :: GetLearner()
 {
     return &m_oLearner;
 }
+
+SMFac * Group :: GetSMFac()
+{
+    return &m_oSMFac;
+}
+
 
 int Group :: OnReceiveMessage(const char * pcMessage, const int iMessageLen)
 {
@@ -327,16 +336,64 @@ int Group :: OnReceiveMessage(const char * pcMessage, const int iMessageLen)
     return 0;
 }
 
+IOLoop * Group :: GetIOLoop()
+{
+    return &m_oIOLoop;
+}
+
+const Options * Group :: GetOptions()
+{
+    return &m_oOptions;
+}
+
+uint64_t Group :: GetNowInstanceID() const
+{
+    return m_llNowInstanceID;
+}
+
+uint64_t Group :: GetMinChosenInstanceID() const
+{
+    return m_oCheckpointMgr.GetMinChosenInstanceID();
+}
+
+int Group :: GetInstanceValue(const uint64_t llInstanceID, std::string & sValue, int & iSMID)
+{
+    iSMID = 0;
+
+    AcceptorStateData oState; 
+    int ret = m_oPaxosLog.ReadState(m_iMyGroupIdx, llInstanceID, oState);
+    if (ret != 0 && ret != 1)
+    {
+        return -1;
+    }
+
+    if (ret == 1)
+    {
+        return Paxos_GetInstanceValue_Value_NotExist;
+    }
+
+    memcpy(&iSMID, oState.acceptedvalue().data(), sizeof(int));
+    sValue = string(oState.acceptedvalue().data() + sizeof(int), oState.acceptedvalue().size() - sizeof(int));
+
+    return 0;
+}
+
+
+void Group :: AddStateMachine(StateMachine * poSM)
+{
+    m_oSMFac.AddSM(poSM);
+}
+
 bool Group :: HasIdleInstance(uint64_t & llInstanceID)
 {
-    llInstanceID = -1;
-    if (-1 == m_llNowInstanceID || -1 == m_llNowIdleInstanceID) { // uninit
+    llInstanceID = NoCheckpoint;
+    if (NoCheckpoint == m_llNowInstanceID || NoCheckpoint == m_llNowIdleInstanceID) { // uninit
         return false;
     }
     if (m_llNowIdleInstanceID < m_llNowInstanceID) {
         return false;
     }
-    if (m_llNowIdleInstanceID >= m_llNowInstanceID + m_poConfig->GetMaxWindowSize()) {
+    if (m_llNowIdleInstanceID >= m_llNowInstanceID + m_oConfig.GetWindowSize()) {
         return false;
     }
 
@@ -351,7 +408,7 @@ void Group :: AddTimeoutInstance(const uint64_t llInstaceID)
 
 bool Group :: HasTimeoutInstance(uint64_t & llInstanceID)
 {
-    llInstanceID = -1;
+    llInstanceID = NoCheckpoint;
 
     if (m_seTimeoutInstnaceList.empty()) return false;
 
@@ -362,7 +419,7 @@ bool Group :: HasTimeoutInstance(uint64_t & llInstanceID)
 }
 
 
-int Group :: NewValue(const uint64_t llInstanceID, const std::string & sValue)
+int Group :: NewValue(const uint64_t llInstanceID, const std::string & sValue, shared_ptr<CommitCtx> poCommitCtx)
 {
     auto poInstance = GetInstance(llInstanceID);
     if (nullptr == poInstance) {
@@ -387,13 +444,13 @@ void Group :: SetOtherProposalID(const uint64_t llOtherProposalID)
 
 void Group :: SetPromiseBallot(const uint64_t llInstanceID, const BallotNumber &oBallotNumber)
 {
-    uint64_t llEndPromiseInstanceID{-1};
+    uint64_t llEndPromiseInstanceID{NoCheckpoint};
     BallotNumber oPromiseBallotNumber = GetPromiseBallot(llInstanceID, llEndPromiseInstanceID);
 
-    if (oBallotNumber <= oPromiseBallotNumber) return;
+    if (!(oBallotNumber > oPromiseBallotNumber)) return;
 
     m_mapInstanceID2PromiseBallot[llInstanceID] = oBallotNumber;
-    while (m_mapInstanceID2PromiseBallot.size() > m_poConfig->GetMaxWindowSize())
+    while (m_mapInstanceID2PromiseBallot.size() > m_oConfig.GetMaxWindowSize())
     {
         m_mapInstanceID2PromiseBallot.erase(m_mapInstanceID2PromiseBallot.begin());
     }
@@ -401,7 +458,7 @@ void Group :: SetPromiseBallot(const uint64_t llInstanceID, const BallotNumber &
 
 BallotNumber Group :: GetPromiseBallot(const uint64_t llInstanceID, uint64_t & llEndPromiseInstanceID) const
 {
-    llEndPromiseInstanceID = -1;
+    llEndPromiseInstanceID = NoCheckpoint;
 
     auto it = m_mapInstanceID2PromiseBallot.upper_bound(llInstanceID);
     if (m_mapInstanceID2PromiseBallot.end() != it) {
@@ -411,12 +468,13 @@ BallotNumber Group :: GetPromiseBallot(const uint64_t llInstanceID, uint64_t & l
         return BallotNumber();
     }
 
-    return --it;
+    --it;
+    return it->second;
 }
 
 void Group :: OnReceiveCheckpointMsg(const CheckpointMsg & oCheckpointMsg)
 {
-    PLGImp("Now.InstanceID %lu MsgType %d Msg.from_nodeid %lu My.nodeid %lu flag %d"
+    PLG1Imp("Now.InstanceID %lu MsgType %d Msg.from_nodeid %lu My.nodeid %lu flag %d"
             " uuid %lu sequence %lu checksum %lu offset %lu buffsize %zu filepath %s",
             m_llNowInstanceID, oCheckpointMsg.msgtype(), oCheckpointMsg.nodeid(),
             m_oConfig.GetMyNodeID(), oCheckpointMsg.flag(), oCheckpointMsg.uuid(), oCheckpointMsg.sequence(), oCheckpointMsg.checksum(),
@@ -426,7 +484,7 @@ void Group :: OnReceiveCheckpointMsg(const CheckpointMsg & oCheckpointMsg)
     {
         if (!m_oCheckpointMgr.InAskforcheckpointMode())
         {
-            PLGImp("not in ask for checkpoint mode, ignord checkpoint msg");
+            PLG1Imp("not in ask for checkpoint mode, ignord checkpoint msg");
             return;
         }
 
@@ -448,7 +506,7 @@ bool Group :: ReceiveMsgHeaderCheck(const Header & oHeader, const nodeid_t iFrom
     if (m_oConfig.GetGid() != oHeader.gid())
     {
         BP->GetAlgorithmBaseBP()->HeaderGidNotSame();
-        PLGErr("Header check fail, header.gid %lu config.gid %lu, msg.from_nodeid %lu",
+        PLG1Err("Header check fail, header.gid %lu config.gid %lu, msg.from_nodeid %lu",
                 oHeader.gid(), m_oConfig.GetGid(), iFromNodeID);
         return false;
     }
@@ -462,7 +520,7 @@ void Group :: OnReceive(const std::string & sBuffer)
 
     if (sBuffer.size() <= 6)
     {
-        PLGErr("buffer size %zu too short", sBuffer.size());
+        PLG1Err("buffer size %zu too short", sBuffer.size());
         return;
     }
 
@@ -481,7 +539,7 @@ void Group :: OnReceive(const std::string & sBuffer)
     {
         if (m_oCheckpointMgr.InAskforcheckpointMode())
         {
-            PLGImp("in ask for checkpoint mode, ignord paxosmsg");
+            PLG1Imp("in ask for checkpoint mode, ignord paxosmsg");
             return;
         }
         
@@ -490,7 +548,7 @@ void Group :: OnReceive(const std::string & sBuffer)
         if (!bSucc)
         {
             BP->GetInstanceBP()->OnReceiveParseError();
-            PLGErr("PaxosMsg.ParseFromArray fail, skip this msg");
+            PLG1Err("PaxosMsg.ParseFromArray fail, skip this msg");
             return;
         }
 
@@ -513,7 +571,7 @@ void Group :: OnReceive(const std::string & sBuffer)
         if (!bSucc)
         {
             BP->GetInstanceBP()->OnReceiveParseError();
-            PLGErr("PaxosMsg.ParseFromArray fail, skip this msg");
+            PLG1Err("PaxosMsg.ParseFromArray fail, skip this msg");
             return;
         }
 
@@ -565,9 +623,9 @@ void Group :: ReceiveMsgForLearner(const PaxosMsg & oPaxosMsg)
 
 void Group :: ProcessCommit()
 {
-    uint64_t llInstanceID{-1};
+    uint64_t llInstanceID{NoCheckpoint};
     std::string sValue;
-    while (m_poLearner->GetPendingCommit(llInstanceID, sValue)) {
+    while (m_oLearner.GetPendingCommit(llInstanceID, sValue)) {
         BP->GetInstanceBP()->OnInstanceLearned();
 
         SMCtx * poSMCtx = nullptr;
@@ -575,7 +633,7 @@ void Group :: ProcessCommit()
         auto poInstance = GetInstance(llInstanceID);
         if (!poInstance)
         {
-            PLGErr("poInstance null, instanceid %lu", llInstanceID);
+            PLG1Err("poInstance null, instanceid %lu", llInstanceID);
             return;
         }
 
@@ -587,22 +645,22 @@ void Group :: ProcessCommit()
             if (!bIsMyCommit)
             {
                 BP->GetInstanceBP()->OnInstanceLearnedNotMyCommit();
-                PLGDebug("this value is not my commit");
+                PLG1Debug("this value is not my commit");
             }
             else
             {
-                int iUseTimeMs = m_oTimeStat.Point();
+                auto iUseTimeMs = 0; // TODO
                 BP->GetInstanceBP()->OnInstanceLearnedIsMyCommit(iUseTimeMs);
-                PLGHead("My commit ok, usetime %dms", iUseTimeMs);
+                PLG1Head("My commit ok, usetime %dms", iUseTimeMs);
             }
         }
 
 
-        if (!poInstance->SMExecute(llInstanceID, sValue, poSMCtx))
+        if (!m_oSMFac.Execute(m_iMyGroupIdx, llInstanceID, sValue, poSMCtx))
         {
             BP->GetInstanceBP()->OnInstanceLearnedSMExecuteFail();
 
-            PLGErr("SMExecute fail, instanceid %lu, not increase instanceid", llInstanceID);
+            PLG1Err("SMExecute fail, instanceid %lu, not increase instanceid", llInstanceID);
             if (poCommitCtx)
             {
                 poCommitCtx->SetResult(PaxosTryCommitRet_ExecuteFail, 
@@ -618,7 +676,7 @@ void Group :: ProcessCommit()
             if (poCommitCtx)
             {
                 poCommitCtx->SetResult(PaxosTryCommitRet_OK,
-                                         m_oLearner.GetInstanceID(), m_oLearner.GetLearnValue());
+                                         llInstanceID, sValue);
             }
 
             //this paxos instance end, tell proposal done
@@ -626,18 +684,19 @@ void Group :: ProcessCommit()
 
             if (poCommitCtx->GetCommitTimerID() > 0)
             {
-                m_poIOLoop->RemoveTimer(poCommitCtx->GetCommitTimerID());
-                poCommitCtx->SetCommitTimerID(0);
+                auto iTimerID = poCommitCtx->GetCommitTimerID();
+                m_oIOLoop.RemoveTimer(iTimerID);
+                poCommitCtx->SetCommitTimerID(iTimerID);
             }
         }
         
-        PLGHead("[Learned] learned instanceid %lu. New paxos starting", llInstanceID);
+        PLG1Head("[Learned] learned instanceid %lu. New paxos starting", llInstanceID);
 
         m_oCheckpointMgr.SetMaxCommitInstanceID(llInstanceID);
 
-        if (!m_poLearner->FinishCommit(llInstanceID))
+        if (!m_oLearner.FinishCommit(llInstanceID))
         {
-            PLGErr("FinishCommit fail, instanceid %lu", llInstanceID);
+            PLG1Err("FinishCommit fail, instanceid %lu", llInstanceID);
             return;
         }
 
@@ -645,8 +704,8 @@ void Group :: ProcessCommit()
         if (llInstanceID + 1 > m_llNowInstanceID) {
             m_llNowInstanceID = llInstanceID + 1;
         }
-        PLGHead("[Learned] NowInstanceID increase to %lu", m_llNowInstanceID);
-        while (!m_mapInstances.empty() && m_mapInstances.begin().first() < m_llNowInstanceID) {
+        PLG1Head("[Learned] NowInstanceID increase to %lu", m_llNowInstanceID);
+        while (!m_mapInstances.empty() && m_mapInstances.begin()->first < m_llNowInstanceID) {
             m_mapInstances.erase(m_mapInstances.begin());
         }
     }
@@ -656,13 +715,13 @@ void Group :: ProcessCommit()
 void Group :: SetPromiseInfo(const uint64_t llPromiseInstanceID, const uint64_t llEndPromiseInstanceID)
 {
     m_setPromiseInstanceID.insert(llPromiseInstanceID);
-    if (m_setPromiseInstanceID.size() > m_poConfig->GetMaxWindowSize())
+    if (m_setPromiseInstanceID.size() > m_oConfig.GetMaxWindowSize())
     {
         m_setPromiseInstanceID.erase(m_setPromiseInstanceID.begin());
     }
 
     m_setEndPromiseInstanceID.insert(llEndPromiseInstanceID);
-    if (m_setEndPromiseInstanceID.size() > m_poConfig->GetMaxWindowSize())
+    if (m_setEndPromiseInstanceID.size() > m_oConfig.GetMaxWindowSize())
     {
         m_setEndPromiseInstanceID.erase(m_setEndPromiseInstanceID.begin());
     }
@@ -685,9 +744,9 @@ bool Group :: NeedPrepare(const uint64_t llInstanceID)
 }
 
 
-void Group :: GetMaxInstanceIDFromLog(uint64_t & llMaxInstanceID)
+int Group :: GetMaxInstanceIDFromLog(uint64_t & llMaxInstanceID)
 {
-    return m_oPaxosLog.GetMaxInstanceIDFromLog(m_poConfig->GetMyGroupIdx(), llMaxInstanceID);
+    return m_oPaxosLog.GetMaxInstanceIDFromLog(m_iMyGroupIdx, llMaxInstanceID);
 }
 
 int Group :: ProtectionLogic_IsCheckpointInstanceIDCorrect(const uint64_t llCPInstanceID, const uint64_t llLogMaxInstanceID) 
@@ -720,12 +779,12 @@ int Group :: ProtectionLogic_IsCheckpointInstanceIDCorrect(const uint64_t llCPIn
             int ret = m_oCheckpointMgr.SetMinChosenInstanceID(llCPInstanceID);
             if (ret != 0)
             {
-                PLGErr("SetMinChosenInstanceID fail, now minchosen %lu max instanceid %lu checkpoint instanceid %lu",
+                PLG1Err("SetMinChosenInstanceID fail, now minchosen %lu max instanceid %lu checkpoint instanceid %lu",
                         m_oCheckpointMgr.GetMinChosenInstanceID(), llLogMaxInstanceID, llCPInstanceID);
                 return -1;
             }
 
-            PLGStatus("Fix minchonse instanceid ok, old minchosen %lu now minchosen %lu max %lu checkpoint %lu",
+            PLG1Status("Fix minchonse instanceid ok, old minchosen %lu now minchosen %lu max %lu checkpoint %lu",
                     llMinChosenInstanceID, m_oCheckpointMgr.GetMinChosenInstanceID(),
                     llLogMaxInstanceID, llCPInstanceID);
         }
@@ -735,7 +794,7 @@ int Group :: ProtectionLogic_IsCheckpointInstanceIDCorrect(const uint64_t llCPIn
     else
     {
         //other case.
-        PLGErr("checkpoint instanceid %lu larger than log max instanceid %lu. "
+        PLG1Err("checkpoint instanceid %lu larger than log max instanceid %lu. "
                 "Please ensure that your checkpoint data is correct. "
                 "If you ensure that, just delete all paxos log data and restart.",
                 llCPInstanceID, llLogMaxInstanceID);
@@ -747,7 +806,7 @@ int Group :: PlayLog(const uint64_t llBeginInstanceID, const uint64_t llEndInsta
 {
     if (llBeginInstanceID < m_oCheckpointMgr.GetMinChosenInstanceID())
     {
-        PLGErr("now instanceid %lu small than min chosen instanceid %lu", 
+        PLG1Err("now instanceid %lu small than min chosen instanceid %lu", 
                 llBeginInstanceID, m_oCheckpointMgr.GetMinChosenInstanceID());
         return -2;
     }
@@ -755,17 +814,17 @@ int Group :: PlayLog(const uint64_t llBeginInstanceID, const uint64_t llEndInsta
     for (uint64_t llInstanceID = llBeginInstanceID; llInstanceID < llEndInstanceID; llInstanceID++)
     {
         AcceptorStateData oState; 
-        int ret = m_oPaxosLog.ReadState(m_poConfig->GetMyGroupIdx(), llInstanceID, oState);
+        int ret = m_oPaxosLog.ReadState(m_iMyGroupIdx, llInstanceID, oState);
         if (ret != 0)
         {
-            PLGErr("log read fail, instanceid %lu ret %d", llInstanceID, ret);
+            PLG1Err("log read fail, instanceid %lu ret %d", llInstanceID, ret);
             return ret;
         }
 
-        bool bExecuteRet = m_oSMFac.Execute(m_poConfig->GetMyGroupIdx(), llInstanceID, oState.acceptedvalue(), nullptr);
+        bool bExecuteRet = m_oSMFac.Execute(m_oConfig.GetMyGroupIdx(), llInstanceID, oState.acceptedvalue(), nullptr);
         if (!bExecuteRet)
         {
-            PLGErr("Execute fail, instanceid %lu", llInstanceID);
+            PLG1Err("Execute fail, instanceid %lu", llInstanceID);
             return -1;
         }
     }

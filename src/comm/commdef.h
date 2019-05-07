@@ -49,6 +49,7 @@ namespace phxpaxos
 #define PLGDebug(format, args...) LOG_VERBOSE("DEBUG(%d): %s::%s " format, m_poConfig->GetMyGroupIdx(), typeid(this).name(), __func__, ## args);
     
 #define PLG1Err(format, args...) LOG_ERROR("ERR(%d): %s::%s " format, m_iMyGroupIdx, typeid(this).name(), __func__, ## args);
+#define PLG1Status(format, args...) LOG_STATUS("STATUS(%d): %s::%s " format, m_iMyGroupIdx, typeid(this).name(), __func__, ## args);
 #define PLG1Imp(format, args...) LOG_SHOWY("Showy(%d): %s::%s " format, m_iMyGroupIdx, typeid(this).name(), __func__, ## args);
 #define PLG1Head(format, args...) LOG_WARNING("Imp(%d): %s::%s " format, m_iMyGroupIdx, typeid(this).name(), __func__, ## args);
 #define PLG1Debug(format, args...) LOG_VERBOSE("DEBUG(%d): %s::%s " format, m_iMyGroupIdx, typeid(this).name(), __func__, ## args);

@@ -28,6 +28,9 @@ See the AUTHORS file for names of contributors.
 #include "instance.h"
 #include "cleaner.h"
 #include "communicate.h"
+#include "committer.h"
+#include "learner.h"
+#include "cp_mgr.h"
 #include "phxpaxos/options.h"
 #include "phxpaxos/network.h"
 
@@ -47,7 +50,9 @@ public:
 
     void StartInit();
 
-    void InitLastCheckSum();
+    int LoadMaxInstanceID(uint64_t & llInstanceID);
+
+    int InitLastCheckSum();
 
     void Init();
 
@@ -67,8 +72,6 @@ public:
 
     Replayer * GetCheckpointReplayer();
 
-    void AddStateMachine(StateMachine * poSM);
-
     uint64_t GetProposalID() const;
 
     void NewPrepare();
@@ -87,6 +90,7 @@ public:
 
     void ReceiveMsgForLearner(const PaxosMsg & oPaxosMsg);
 
+    void ProcessCommit();
 
     void SetPromiseInfo(const uint64_t llPromiseInstanceID, const uint64_t llEndPromiseInstanceID);
 
@@ -94,19 +98,31 @@ public:
 
     Learner * GetLearner();
 
+    SMFac * GetSMFac();
+
     bool HasIdleInstance(uint64_t & llInstanceID);
 
     void AddTimeoutInstance(const uint64_t llInstaceID);
     bool HasTimeoutInstance(uint64_t & llInstanceID);
 
-    int NewValue(const uint64_t llInstanceID, const std::string & sValue);
+    int NewValue(const uint64_t llInstanceID, const std::string & sValue, std::shared_ptr<CommitCtx> poCommitCtx);
 
     void NewIdleInstance();
 
     //this funciton only enqueue, do nothing.
     int OnReceiveMessage(const char * pcMessage, const int iMessageLen);
 
-    IOLoop * GetIOLoop() const;
+    IOLoop * GetIOLoop();
+
+    const Options * GetOptions();
+
+    uint64_t GetNowInstanceID() const;
+
+    uint64_t GetMinChosenInstanceID() const;
+
+    int GetInstanceValue(const uint64_t llInstanceID, std::string & sValue, int & iSMID);
+
+    void AddStateMachine(StateMachine * poSM);
 
 private:
     int GetMaxInstanceIDFromLog(uint64_t & llMaxInstanceID);
@@ -116,19 +132,17 @@ private:
     int PlayLog(const uint64_t llBeginInstanceID, const uint64_t llEndInstanceID);
 
 private:
+    Options m_oOptions;
     LogStorage * m_poLogStorage;
+    PaxosLog m_oPaxosLog;
 
-    Communicate m_oCommunicate;
+    int m_iMyGroupIdx;
+ 
     Config m_oConfig;
-    std::map<uint64_t, Instance> m_mapInstances;
+    Communicate m_oCommunicate;
+    std::map<uint64_t, std::unique_ptr<Instance>> m_mapInstances;
     uint32_t m_iMaxWindowSize{100};
 
-    int m_iInitRet{0};
-    std::thread * m_poThread;
-
-    CheckpointMgr m_oCheckpointMgr;
-    Learner m_oLearner;
-    SMFac m_oSMFac;
 
     uint64_t m_llNowInstanceID{-1};
     uint64_t m_llNowIdleInstanceID{-1};
@@ -143,11 +157,22 @@ private:
 
     std::map<uint64_t, BallotNumber> m_mapInstanceID2PromiseBallot; // for acceptor OnPrepare
 
-    Committer m_oCommitter;
+
 
     bool m_bStarted{false};
 
     IOLoop m_oIOLoop;
+
+    SMFac m_oSMFac;
+
+    Committer m_oCommitter;
+
+    CheckpointMgr m_oCheckpointMgr;
+
+    Learner m_oLearner;
+
+    int m_iInitRet{0};
+    std::thread * m_poThread;
 
     std::set<uint64_t> m_seTimeoutInstnaceList;
 };
