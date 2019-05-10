@@ -290,7 +290,7 @@ void IOLoop :: OneLoop(const int iTimeoutMs)
         m_oMessageQueue.pop();
         m_oMessageQueue.unlock();
 
-        if (psMessage->size() > 0)
+        if (nullptr != psMessage && psMessage->size() > 0)
         {
             m_iQueueMemSize -= psMessage->size();
 
