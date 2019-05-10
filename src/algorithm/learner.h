@@ -95,8 +95,6 @@ public:
 
     void StartLearnerSender();
 
-    virtual void InitForNewPaxosInstance();
-
     void Stop();
 
     //prepare learn
