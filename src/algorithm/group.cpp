@@ -145,6 +145,9 @@ int Group :: InitLastCheckSum()
 
 void Group :: Init()
 {
+
+    PLG1Debug("(unix) Init");
+
     m_iInitRet = m_oConfig.Init();
     if (m_iInitRet != 0)
     {
@@ -169,19 +172,18 @@ void Group :: Init()
     int m_iInitRet = LoadMaxInstanceID(llMaxInstanceID);
     if (m_iInitRet != 0 && m_iInitRet != 1)
     {
-        //PLG1Err("Load max instance id fail, ret %d", ret);
+        PLG1Err("Load max instance id fail. iInitRet %d", m_iInitRet);
         return;
     }
 
+    PLG1Debug("(unix) CPInstanceID %lu MaxInstanceID %lu", llCPInstanceID, llMaxInstanceID);
+
     if (m_iInitRet == 1)
     {
-        //PLG1Err("empty database");
+        PLG1Err("empty database");
         m_iInitRet = 0;
         llMaxInstanceID = 0;
     }
-
-    //PLG1Imp("Acceptor.OK, Log.InstanceID %lu Checkpoint.InstanceID %lu", 
-    //        m_oAcceptor.GetInstanceID(), llCPInstanceID);
 
     //playlog
     {
@@ -194,7 +196,7 @@ void Group :: Init()
                 return;
             }
 
-            //PLG1Imp("PlayLog OK, begin instanceid %lu end instanceid %lu", m_llNowInstanceID, m_oAcceptor.GetInstanceID());
+            PLG1Imp("PlayLog OK, begin instanceid %lu end instanceid %lu", m_llNowInstanceID, llMaxInstanceID);
 
             m_llNowInstanceID = llMaxInstanceID;
         }
@@ -233,6 +235,8 @@ void Group :: Init()
 
 
     m_llNowIdleInstanceID = m_llNowInstanceID;
+
+    PLG1Debug("(unix) CPInstanceID %lu NowIdleInstanceID %lu", llCPInstanceID, m_llNowIdleInstanceID);
 
 }
 
@@ -386,6 +390,10 @@ void Group :: AddStateMachine(StateMachine * poSM)
 
 bool Group :: HasIdleInstance(uint64_t & llInstanceID)
 {
+    auto iWindowSize = m_oConfig.GetWindowSize();
+
+    PLG1Debug("(unix) NowIdleInstanceID %lu NowInstanceID %lu WindowSize %u", m_llNowIdleInstanceID, m_llNowInstanceID, iWindowSize);
+
     llInstanceID = NoCheckpoint;
     if (NoCheckpoint == m_llNowInstanceID || NoCheckpoint == m_llNowIdleInstanceID) { // uninit
         return false;
@@ -393,7 +401,7 @@ bool Group :: HasIdleInstance(uint64_t & llInstanceID)
     if (m_llNowIdleInstanceID < m_llNowInstanceID) {
         return false;
     }
-    if (m_llNowIdleInstanceID >= m_llNowInstanceID + m_oConfig.GetWindowSize()) {
+    if (m_llNowIdleInstanceID >= m_llNowInstanceID + iWindowSize) {
         return false;
     }
 
@@ -450,6 +458,9 @@ void Group :: SetPromiseBallot(const uint64_t llInstanceID, const BallotNumber &
     if (!(oBallotNumber > oPromiseBallotNumber)) return;
 
     m_mapInstanceID2PromiseBallot[llInstanceID] = oBallotNumber;
+
+    PLG1Debug("(unix) set new PromiseBallot(ProposalID: %lu, NodeID: %lu). InstanceID %lu", oBallotNumber.m_llProposalID, oBallotNumber.m_llNodeID, llInstanceID);
+
     while (m_mapInstanceID2PromiseBallot.size() > m_oConfig.GetMaxWindowSize())
     {
         m_mapInstanceID2PromiseBallot.erase(m_mapInstanceID2PromiseBallot.begin());
@@ -465,10 +476,14 @@ BallotNumber Group :: GetPromiseBallot(const uint64_t llInstanceID, uint64_t & l
         llEndPromiseInstanceID = it->first;
     }
     if (m_mapInstanceID2PromiseBallot.begin() == it) {
+        PLG1Debug("(unix) PromiseBallot empty. InstanceID %lu EndPromiseInstanceID %lu", llInstanceID, llEndPromiseInstanceID);
         return BallotNumber();
     }
 
     --it;
+
+    PLG1Debug("(unix) PromiseBallot(ProposalID: %lu, NodeID: %lu). InstanceID %lu EndPromiseInstanceID %lu", it->second.m_llProposalID, it->second.m_llNodeID, llInstanceID, llEndPromiseInstanceID);
+
     return it->second;
 }
 
@@ -623,9 +638,14 @@ void Group :: ReceiveMsgForLearner(const PaxosMsg & oPaxosMsg)
 
 void Group :: ProcessCommit()
 {
+    PLG1Debug("(unix) begin");
+
     uint64_t llInstanceID{NoCheckpoint};
     std::string sValue;
     while (m_oLearner.GetPendingCommit(llInstanceID, sValue)) {
+
+        PLG1Debug("(unix) pending commit. InstanceID %lu", llInstanceID);
+
         BP->GetInstanceBP()->OnInstanceLearned();
 
         SMCtx * poSMCtx = nullptr;
@@ -640,6 +660,8 @@ void Group :: ProcessCommit()
         auto poCommitCtx = poInstance->GetCommitCtx();
         if (poCommitCtx)
         {
+            PLG1Debug("(unix) CommitCtx exist");
+
             bool bIsMyCommit = poCommitCtx->IsMyCommit(llInstanceID, sValue, poSMCtx);
 
             if (!bIsMyCommit)
@@ -653,6 +675,8 @@ void Group :: ProcessCommit()
                 BP->GetInstanceBP()->OnInstanceLearnedIsMyCommit(iUseTimeMs);
                 PLG1Head("My commit ok, usetime %dms", iUseTimeMs);
             }
+        } else {
+            PLG1Debug("(unix) CommitCtx not exist");
         }
 
 
@@ -675,19 +699,23 @@ void Group :: ProcessCommit()
         {
             if (poCommitCtx)
             {
+                PLG1Debug("(unix) CommitTimerID %d", poCommitCtx->GetCommitTimerID());
+
                 poCommitCtx->SetResult(PaxosTryCommitRet_OK,
                                          llInstanceID, sValue);
+
+                if (poCommitCtx->GetCommitTimerID() > 0)
+                {
+                    auto iTimerID = poCommitCtx->GetCommitTimerID();
+                    m_oIOLoop.RemoveTimer(iTimerID);
+                    poCommitCtx->SetCommitTimerID(iTimerID);
+                }
             }
 
             //this paxos instance end, tell proposal done
 
 
-            if (poCommitCtx->GetCommitTimerID() > 0)
-            {
-                auto iTimerID = poCommitCtx->GetCommitTimerID();
-                m_oIOLoop.RemoveTimer(iTimerID);
-                poCommitCtx->SetCommitTimerID(iTimerID);
-            }
+
         }
         
         PLG1Head("[Learned] learned instanceid %lu. New paxos starting", llInstanceID);
@@ -706,6 +734,7 @@ void Group :: ProcessCommit()
         }
         PLG1Head("[Learned] NowInstanceID increase to %lu", m_llNowInstanceID);
         while (!m_mapInstances.empty() && m_mapInstances.begin()->first < m_llNowInstanceID) {
+            PLG1Debug("(unix) erase instance %lu", m_mapInstances.begin()->first);
             m_mapInstances.erase(m_mapInstances.begin());
         }
     }

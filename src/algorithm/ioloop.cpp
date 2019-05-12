@@ -185,6 +185,7 @@ void IOLoop :: CheckNewValue()
 {
     if (!m_poGroup->GetLearner()->IsIMLatest())
     {
+        PLGDebug("im not lastest");
         return;
     }
 
@@ -193,9 +194,15 @@ void IOLoop :: CheckNewValue()
     if (!m_poGroup->HasTimeoutInstance(llInstanceID)) {
         use_idle_instance = m_poGroup->HasIdleInstance(llInstanceID);
     }
+
+    PLGDebug("(unix) InstanceID %lu use_idle_instance %d", llInstanceID, use_idle_instance);
+
     if (NoCheckpoint == llInstanceID) {
         return;
     }
+
+
+
 
     int iCommitRet = PaxosTryCommitRet_OK;
 
@@ -211,6 +218,8 @@ void IOLoop :: CheckNewValue()
     }
 
     if (0 == llInstanceID) { // proposal system variable first
+        PLGDebug("(unix) proposal system variable first");
+
         if (PaxosTryCommitRet_OK != iCommitRet) {
             return;
         }
@@ -228,6 +237,8 @@ void IOLoop :: CheckNewValue()
         m_poGroup->NewValue(llInstanceID, sInitSVOpValue, nullptr);
 
     } else {
+        PLGDebug("(unix) proposal commitctx. InstancdID %lu", llInstanceID);
+
         shared_ptr<CommitCtx> poCommitCtx;
 
         m_oCommitCtxQueue.lock();
@@ -248,6 +259,7 @@ void IOLoop :: CheckNewValue()
         }
 
         if (PaxosTryCommitRet_OK != iCommitRet) {
+            PLGErr("(unix) CommitRet %d InstancdID %lu", iCommitRet, llInstanceID);
             poCommitCtx->SetResultOnlyRet(iCommitRet);
             return;
         }

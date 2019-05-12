@@ -167,10 +167,15 @@ int Proposer :: NewValue(const std::string & sValue)
         BP->GetProposerBP()->NewProposalSkipPrepare();
 
         PLGHead("skip prepare, directly start accept");
+
+        PLGDebug("(unix) skip prepare, do accept");
+
         Accept();
     }
     else
     {
+        PLGDebug("(unix) need prepare, do prepare");
+
         //if not reject by someone, no need to increase ballot
         Prepare(m_bWasRejectBySomeone);
     }
@@ -276,9 +281,9 @@ void Proposer :: AddAcceptTimer(const int iTimeoutMs)
 
 void Proposer :: Prepare(const bool bNeedNewBallot)
 {
-    PLGHead("START Now.InstanceID %lu MyNodeID %lu State.ProposalID %lu State.ValueLen %zu",
+    PLGHead("START Now.InstanceID %lu MyNodeID %lu State.ProposalID %lu State.ValueLen %zu NeedNewBallot %d",
             GetInstanceID(), m_poConfig->GetMyNodeID(), m_oProposerState.GetProposalID(),
-            m_oProposerState.GetValue().size());
+            m_oProposerState.GetValue().size(), bNeedNewBallot);
 
     BP->GetProposerBP()->Prepare();
     m_oTimeStat.Point();
@@ -292,6 +297,7 @@ void Proposer :: Prepare(const bool bNeedNewBallot)
     if (bNeedNewBallot)
     {
         m_oProposerState.NewPrepare();
+        PLGDebug("(unix) after NewPrepare, ProposerState.GetProposalID %lu", m_oProposerState.GetProposalID());
     }
 
     PaxosMsg oPaxosMsg;

@@ -293,6 +293,8 @@ int Instance :: ReceiveMsgForAcceptor(const PaxosMsg & oPaxosMsg, const bool bIs
 
 int Instance :: NewValue(const std::string & sValue)
 {
+    PLGDebug("(unix) InstanceID %lu", m_llInstanceID);
+
     return m_oProposer.NewValue(sValue);
 }
 
