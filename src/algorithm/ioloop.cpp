@@ -323,6 +323,8 @@ void IOLoop :: OneLoop(const int iTimeoutMs)
 
 bool IOLoop :: AddTimer(const int iTimeout, Timer::CallbackFunc fCallbackFunc, uint32_t & iTimerID)
 {
+    PLGDebug("(unix) TimerID %u Timeout %d", iTimerID, iTimeout);
+
     if (iTimeout == -1)
     {
         return true;
@@ -338,6 +340,8 @@ bool IOLoop :: AddTimer(const int iTimeout, Timer::CallbackFunc fCallbackFunc, u
 
 void IOLoop :: RemoveTimer(uint32_t & iTimerID)
 {
+    PLGDebug("(unix) TimerID %u", iTimerID);
+
     auto it = m_mapTimerIDExist.find(iTimerID);
     if (it != end(m_mapTimerIDExist))
     {
@@ -349,6 +353,8 @@ void IOLoop :: RemoveTimer(uint32_t & iTimerID)
 
 void IOLoop :: DealwithTimeoutOne(const uint32_t iTimerID, Timer::CallbackFunc fCallbackFunc)
 {
+    PLGDebug("(unix) TimerID %u", iTimerID);
+
     auto it = m_mapTimerIDExist.find(iTimerID);
     if (it == end(m_mapTimerIDExist))
     {
