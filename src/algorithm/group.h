@@ -148,7 +148,7 @@ private:
     uint64_t m_llNowIdleInstanceID{-1};
     uint32_t m_iLastChecksum{0};
 
-    uint64_t m_llProposalID{0}; // for proposer Prepare/Accept
+    uint64_t m_llProposalID{1}; // for proposer Prepare/Accept, start from 1
     uint64_t m_llHighestOtherProposalID{0};
 
     std::set<uint64_t> m_setPromiseInstanceID;
