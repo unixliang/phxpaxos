@@ -434,6 +434,10 @@ int Group :: NewValue(const uint64_t llInstanceID, const std::string & sValue, s
         return -1;
     }
 
+    if (poCommitCtx) {
+        poInstance->SetCommitCtx(poCommitCtx);
+    }
+
     return poInstance->NewValue(sValue);
 }
 
