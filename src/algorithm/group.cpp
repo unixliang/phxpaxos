@@ -404,7 +404,7 @@ bool Group :: HasIdleInstance(uint64_t & llInstanceID)
         return false;
     }
     if (m_llNowIdleInstanceID < m_llNowInstanceID) {
-        return false;
+        m_llNowIdleInstanceID = m_llNowInstanceID; // fix m_llNowIdleInstanceID
     }
     if (m_llNowIdleInstanceID >= m_llNowInstanceID + iWindowSize) {
         return false;
