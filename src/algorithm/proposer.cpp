@@ -126,6 +126,9 @@ Proposer :: Proposer(
 
 Proposer :: ~Proposer()
 {
+    // remove timer in ioloop
+    ExitPrepare();
+    ExitAccept();
 }
 
 void Proposer :: Init(uint64_t llInstanceID)

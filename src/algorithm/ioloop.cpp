@@ -255,6 +255,7 @@ void IOLoop :: CheckNewValue()
 
         if (nullptr == poCommitCtx)
         {
+            PLGDebug("(unix) InstanceID %lu no CommitCtx", llInstanceID);
             return;
         }
 
