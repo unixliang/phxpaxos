@@ -92,8 +92,6 @@ public:
 
     void ProcessCommit();
 
-    void SetPromiseInfo(const uint64_t llPromiseInstanceID, const uint64_t llEndPromiseInstanceID);
-
     bool NeedPrepare(const uint64_t llInstanceID);
 
     Learner * GetLearner();
@@ -148,12 +146,8 @@ private:
     uint64_t m_llNowIdleInstanceID{-1};
     uint32_t m_iLastChecksum{0};
 
-    uint64_t m_llProposalID{1}; // for proposer Prepare/Accept, start from 1
+    uint64_t m_llProposalID{0};
     uint64_t m_llHighestOtherProposalID{0};
-
-    std::set<uint64_t> m_setPromiseInstanceID;
-    std::set<uint64_t> m_setEndPromiseInstanceID;
-    uint64_t m_llEndPromiseInstanceID{-1};
 
     std::map<uint64_t, BallotNumber> m_mapInstanceID2PromiseBallot; // for acceptor OnPrepare
 

@@ -281,7 +281,7 @@ void Learner :: AskforLearn()
 {
     BP->GetLearnerBP()->AskforLearn();
 
-    PLGHead("START");
+    PLGHead("(unix) START. InstanceID %lu", GetInstanceID());
 
     PaxosMsg oPaxosMsg;
 
@@ -319,6 +319,7 @@ void Learner :: OnAskforLearn(const PaxosMsg & oPaxosMsg)
     }
     
     if (oPaxosMsg.instanceid() >= GetInstanceID())
+    //if (oPaxosMsg.instanceid() > GetInstanceID()) // (unix) from-node need to know whether the instance of oPaxosMsg.instanceid is chosen
     {
         return;
     }
@@ -696,6 +697,9 @@ bool Learner :: FinishCommit(uint64_t & llCommitInstanceID)
                                                                });
 
     SetInstanceID(m_oLearnerState.GetLastCommitInstanceID() + 1);
+
+    PLGDebug("(unix) CommitInstanceID %lu LastCommitInstanceID %lu Learner.InstanceID %lu",
+             llCommitInstanceID, m_oLearnerState.GetLastCommitInstanceID(), GetInstanceID());
 
     return ok;
 

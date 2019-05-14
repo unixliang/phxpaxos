@@ -179,8 +179,8 @@ int Proposer :: NewValue(const std::string & sValue)
     {
         PLGDebug("(unix) need prepare, do prepare");
 
-        //if not reject by someone, no need to increase ballot
-        Prepare(m_bWasRejectBySomeone);
+        ////if not reject by someone, no need to increase ballot
+        Prepare();
     }
 
     return 0;
@@ -344,11 +344,6 @@ void Proposer :: OnPrepareReply(const PaxosMsg & oPaxosMsg)
 
     if (oPaxosMsg.rejectbypromiseid() == 0)
     {
-        //if (NoCheckpoint != oPaxosMsg.endpromiseinstanceid())
-        {
-            m_poGroup->SetPromiseInfo(GetInstanceID(), oPaxosMsg.endpromiseinstanceid());
-        }
-
         BallotNumber oBallot(oPaxosMsg.preacceptid(), oPaxosMsg.preacceptnodeid());
         PLGDebug("[Promise] PreAcceptedID %lu PreAcceptedNodeID %lu ValueSize %zu", 
                 oPaxosMsg.preacceptid(), oPaxosMsg.preacceptnodeid(), oPaxosMsg.value().size());
@@ -446,11 +441,6 @@ void Proposer :: OnAcceptReply(const PaxosMsg & oPaxosMsg)
 
     if (oPaxosMsg.rejectbypromiseid() == 0)
     {
-        //if (NoCheckpoint != oPaxosMsg.endpromiseinstanceid())
-        {
-            m_poGroup->SetPromiseInfo(GetInstanceID(), oPaxosMsg.endpromiseinstanceid());
-        }
-
         PLGDebug("[Accept]");
         m_oMsgCounter.AddPromiseOrAccept(oPaxosMsg.nodeid());
     }

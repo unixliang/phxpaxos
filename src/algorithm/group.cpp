@@ -578,6 +578,7 @@ void Group :: OnReceive(const std::string & sBuffer)
 
         if (!ReceiveMsgHeaderCheck(oHeader, oPaxosMsg.nodeid()))
         {
+            PLG1Err("ReceiveMsgHeaderCheck fail, skip this msg. Config.GetGid %d Header.gid %d PaxosMsg.nodeid %d", m_oConfig.GetGid(), oHeader.gid(), oPaxosMsg.nodeid());
             return;
         }
 
@@ -750,35 +751,19 @@ void Group :: ProcessCommit()
 }
 
 
-void Group :: SetPromiseInfo(const uint64_t llPromiseInstanceID, const uint64_t llEndPromiseInstanceID)
-{
-    m_setPromiseInstanceID.insert(llPromiseInstanceID);
-    if (m_setPromiseInstanceID.size() > m_oConfig.GetMaxWindowSize())
-    {
-        m_setPromiseInstanceID.erase(m_setPromiseInstanceID.begin());
-    }
-
-    m_setEndPromiseInstanceID.insert(llEndPromiseInstanceID);
-    if (m_setEndPromiseInstanceID.size() > m_oConfig.GetMaxWindowSize())
-    {
-        m_setEndPromiseInstanceID.erase(m_setEndPromiseInstanceID.begin());
-    }
-}
-
 bool Group :: NeedPrepare(const uint64_t llInstanceID)
 {
-    if (m_setEndPromiseInstanceID.end() != m_setEndPromiseInstanceID.find(llInstanceID))
-    {
+    BallotNumber oMyBallotNumber(m_llProposalID, m_oConfig.GetMyNodeID());
+
+    uint64_t llEndPromiseInstanceID{NoCheckpoint};
+    BallotNumber oPromiseBallotNumber = GetPromiseBallot(llInstanceID, llEndPromiseInstanceID);
+
+    if (oPromiseBallotNumber.isnull()) {
         return true;
     }
 
-    auto it = m_setPromiseInstanceID.upper_bound(llInstanceID);
-    if (m_setPromiseInstanceID.begin() == it)
-    {
-        return true;
-    }
+    return oPromiseBallotNumber > oMyBallotNumber;
 
-    return false;
 }
 
 
