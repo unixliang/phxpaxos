@@ -767,7 +767,7 @@ void Group :: SetPromiseInfo(const uint64_t llPromiseInstanceID, const uint64_t 
 
 bool Group :: NeedPrepare(const uint64_t llInstanceID)
 {
-    if (m_setEndPromiseInstanceID.end() == m_setEndPromiseInstanceID.find(llInstanceID))
+    if (m_setEndPromiseInstanceID.end() != m_setEndPromiseInstanceID.find(llInstanceID))
     {
         return true;
     }

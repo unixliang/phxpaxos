@@ -344,7 +344,7 @@ void Proposer :: OnPrepareReply(const PaxosMsg & oPaxosMsg)
 
     if (oPaxosMsg.rejectbypromiseid() == 0)
     {
-        if (NoCheckpoint != oPaxosMsg.endpromiseinstanceid())
+        //if (NoCheckpoint != oPaxosMsg.endpromiseinstanceid())
         {
             m_poGroup->SetPromiseInfo(GetInstanceID(), oPaxosMsg.endpromiseinstanceid());
         }
@@ -446,7 +446,7 @@ void Proposer :: OnAcceptReply(const PaxosMsg & oPaxosMsg)
 
     if (oPaxosMsg.rejectbypromiseid() == 0)
     {
-        if (NoCheckpoint != oPaxosMsg.endpromiseinstanceid())
+        //if (NoCheckpoint != oPaxosMsg.endpromiseinstanceid())
         {
             m_poGroup->SetPromiseInfo(GetInstanceID(), oPaxosMsg.endpromiseinstanceid());
         }
