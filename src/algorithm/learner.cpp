@@ -632,7 +632,7 @@ void Learner :: OnProposerSendSuccess(const PaxosMsg & oPaxosMsg)
 
     auto llInstanceID = oPaxosMsg.instanceid();
     auto poInstance = m_poGroup->GetInstance(llInstanceID);
-    if (nullptr == poInstance) {
+    if (!poInstance) {
         PLGErr("Instance not found, InstanceID %lu",
                llInstanceID);
         return;

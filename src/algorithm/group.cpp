@@ -282,6 +282,11 @@ Instance * Group :: GetInstance(uint64_t llInstanceID)
         return it->second.get();
     }
 
+    if (NoCheckpoint != m_llNowInstanceID && llInstanceID < m_llNowInstanceID) { // instance already removed, maybe old msg arrived
+        PLG1Debug("(unix) InstanceID %lu < NowInstanceID %lu, ignore", llInstanceID, m_llNowInstanceID);
+        return nullptr;
+    }
+
     auto ret = m_mapInstances.insert(make_pair(llInstanceID, unique_ptr<Instance>(new Instance(&m_oConfig, m_poLogStorage, &m_oCommunicate, m_oOptions, this))));
     if (!ret.second) return nullptr;
 
@@ -430,7 +435,7 @@ bool Group :: HasTimeoutInstance(uint64_t & llInstanceID)
 int Group :: NewValue(const uint64_t llInstanceID, const std::string & sValue, shared_ptr<CommitCtx> poCommitCtx)
 {
     auto poInstance = GetInstance(llInstanceID);
-    if (nullptr == poInstance) {
+    if (!poInstance) {
         return -1;
     }
 
