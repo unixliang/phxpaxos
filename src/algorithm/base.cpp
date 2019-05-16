@@ -206,10 +206,7 @@ int Base :: SendMessage(const nodeid_t iSendtoNodeID, const PaxosMsg & oPaxosMsg
 
     if (iSendtoNodeID == m_poConfig->GetMyNodeID())
     {
-        auto poInstance = m_poGroup->GetInstance(m_llInstanceID);
-        if (poInstance) {
-            poInstance->OnReceivePaxosMsg(oPaxosMsg);
-        }
+        m_poGroup->OnReceivePaxosMsg(oPaxosMsg);
         return 0; 
     }
     
@@ -234,8 +231,7 @@ int Base :: BroadcastMessage(const PaxosMsg & oPaxosMsg, const int iRunType, con
 
     if (iRunType == BroadcastMessage_Type_RunSelf_First || iRunType == BroadcastMessage_Type_RunSelf_Only)
     {
-        auto poInstance = m_poGroup->GetInstance(m_llInstanceID);
-        if (!poInstance || poInstance->OnReceivePaxosMsg(oPaxosMsg) != 0)
+        if (m_poGroup->OnReceivePaxosMsg(oPaxosMsg) != 0)
         {
             return -1;
         }
@@ -256,10 +252,7 @@ int Base :: BroadcastMessage(const PaxosMsg & oPaxosMsg, const int iRunType, con
 
     if (iRunType == BroadcastMessage_Type_RunSelf_Final)
     {
-        auto poInstance = m_poGroup->GetInstance(m_llInstanceID);
-        if (poInstance) {
-            poInstance->OnReceivePaxosMsg(oPaxosMsg);
-        }
+        m_poGroup->OnReceivePaxosMsg(oPaxosMsg);
     }
 
     return ret;

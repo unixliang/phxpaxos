@@ -47,6 +47,8 @@ void LearnerState :: Init()
 
 bool LearnerState :: GetPendingCommit(uint64_t & llInstanceID, std::string & sValue)
 {
+    PLGDebug("InstanceID %lu m_llLastCommitInstanceID %lu", llInstanceID, m_llLastCommitInstanceID);
+
     if (m_vecLearnStateList.empty() || m_vecLearnStateList.begin()->first != m_llLastCommitInstanceID + 1) {
         return false;
     }
@@ -54,6 +56,8 @@ bool LearnerState :: GetPendingCommit(uint64_t & llInstanceID, std::string & sVa
     llInstanceID = m_vecLearnStateList.begin()->first;
 
     auto &&oLearnState = m_vecLearnStateList.begin()->second;
+
+    PLGDebug("LearnState.LastChecksum %u m_iLastChecksum %u", oLearnState.iLastChecksum, m_iLastChecksum);
 
     // check checksum
     if (oLearnState.iLastChecksum && oLearnState.iLastChecksum != m_iLastChecksum) {
@@ -64,6 +68,7 @@ bool LearnerState :: GetPendingCommit(uint64_t & llInstanceID, std::string & sVa
     }
     
     sValue = oLearnState.sValue;
+
 
     return true;
 }

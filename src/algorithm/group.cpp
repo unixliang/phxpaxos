@@ -578,16 +578,16 @@ void Group :: OnReceive(const std::string & sBuffer)
 
         if (!ReceiveMsgHeaderCheck(oHeader, oPaxosMsg.nodeid()))
         {
-            PLG1Err("ReceiveMsgHeaderCheck fail, skip this msg. Config.GetGid %d Header.gid %d PaxosMsg.nodeid %d", m_oConfig.GetGid(), oHeader.gid(), oPaxosMsg.nodeid());
+            PLG1Err("(unix)ReceiveMsgHeaderCheck fail, skip this msg. Config.GetGid %d Header.gid %d PaxosMsg.nodeid %d", m_oConfig.GetGid(), oHeader.gid(), oPaxosMsg.nodeid());
             return;
         }
 
-        auto llInstanceID = oPaxosMsg.instanceid();
-        auto poInstance = GetInstance(llInstanceID);
-        if (poInstance)
-        {
-            poInstance->OnReceivePaxosMsg(oPaxosMsg);
-        }
+        PLG1Debug("(unix)Msg.InstanceID %lu MsgType %d Msg.from_nodeid %lu My.nodeid %lu",
+                  oPaxosMsg.instanceid(), oPaxosMsg.msgtype(),
+                  oPaxosMsg.nodeid(), m_oConfig.GetMyNodeID());
+
+        OnReceivePaxosMsg(oPaxosMsg);
+
     }
     else if (iCmd == MsgCmd_CheckpointMsg)
     {
@@ -608,6 +608,28 @@ void Group :: OnReceive(const std::string & sBuffer)
         OnReceiveCheckpointMsg(oCheckpointMsg);
     }
 }
+
+
+int Group :: OnReceivePaxosMsg(const PaxosMsg & oPaxosMsg, const bool bIsRetry) {
+    if (oPaxosMsg.msgtype() == MsgType_PaxosLearner_AskforLearn
+        || oPaxosMsg.msgtype() == MsgType_PaxosLearner_SendLearnValue
+        || oPaxosMsg.msgtype() == MsgType_PaxosLearner_ProposerSendSuccess
+        || oPaxosMsg.msgtype() == MsgType_PaxosLearner_ComfirmAskforLearn
+        || oPaxosMsg.msgtype() == MsgType_PaxosLearner_SendNowInstanceID
+        || oPaxosMsg.msgtype() == MsgType_PaxosLearner_SendLearnValue_Ack
+        || oPaxosMsg.msgtype() == MsgType_PaxosLearner_AskforCheckpoint)
+    {
+        //ChecksumLogic(oPaxosMsg);
+        ReceiveMsgForLearner(oPaxosMsg);
+    } else {
+        auto llInstanceID = oPaxosMsg.instanceid();
+        auto poInstance = GetInstance(llInstanceID);
+        if (!poInstance) return -1;
+        return poInstance->OnReceivePaxosMsg(oPaxosMsg, bIsRetry);
+    }
+    return 0;
+}
+
 
 
 void Group :: ReceiveMsgForLearner(const PaxosMsg & oPaxosMsg)

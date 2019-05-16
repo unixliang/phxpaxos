@@ -88,6 +88,8 @@ public:
 
     void OnReceive(const std::string & sBuffer);
 
+    int OnReceivePaxosMsg(const PaxosMsg & oPaxosMsg, const bool bIsRetry = false);
+
     void ReceiveMsgForLearner(const PaxosMsg & oPaxosMsg);
 
     void ProcessCommit();

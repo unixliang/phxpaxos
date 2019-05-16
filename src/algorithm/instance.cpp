@@ -148,18 +148,6 @@ int Instance :: OnReceivePaxosMsg(const PaxosMsg & oPaxosMsg, const bool bIsRetr
         //ChecksumLogic(oPaxosMsg);
         return ReceiveMsgForAcceptor(oPaxosMsg, bIsRetry);
     }
-    else if (oPaxosMsg.msgtype() == MsgType_PaxosLearner_AskforLearn
-            || oPaxosMsg.msgtype() == MsgType_PaxosLearner_SendLearnValue
-            || oPaxosMsg.msgtype() == MsgType_PaxosLearner_ProposerSendSuccess
-            || oPaxosMsg.msgtype() == MsgType_PaxosLearner_ComfirmAskforLearn
-            || oPaxosMsg.msgtype() == MsgType_PaxosLearner_SendNowInstanceID
-            || oPaxosMsg.msgtype() == MsgType_PaxosLearner_SendLearnValue_Ack
-            || oPaxosMsg.msgtype() == MsgType_PaxosLearner_AskforCheckpoint)
-    {
-        //ChecksumLogic(oPaxosMsg);
-        m_poGroup->ReceiveMsgForLearner(oPaxosMsg);
-        return 0;
-    }
     else
     {
         BP->GetInstanceBP()->OnReceivePaxosMsgTypeNotValid();
