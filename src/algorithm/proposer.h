@@ -133,6 +133,7 @@ public:
 
     TimeStat m_oTimeStat;
 
+    Config * m_poConfig;
     Group * m_poGroup;
 };
     

@@ -105,8 +105,11 @@ Proposer :: Proposer(
         const Config * poConfig, 
         const MsgTransport * poMsgTransport,
         Group * poGroup)
-    : Base(poConfig, poMsgTransport, poGroup), m_oProposerState(poConfig, poGroup), m_oMsgCounter(poConfig), m_poGroup(poGroup)
+    : Base(poConfig, poMsgTransport, poGroup), m_oProposerState(poConfig, poGroup), m_oMsgCounter(poConfig)
 {
+    m_poConfig = (Config *)poConfig;
+    m_poGroup = poGroup;
+
     m_poIOLoop = (IOLoop *)poGroup->GetIOLoop();
     
     m_bIsPreparing = false;
