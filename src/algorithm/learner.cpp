@@ -45,7 +45,7 @@ void LearnerState :: Init()
 {
 }
 
-bool LearnerState :: GetPendingCommit(uint64_t & llInstanceID, std::string & sValue)
+bool LearnerState :: GetPendingCommit(uint64_t & llInstanceID, std::string & sValue, nodeid_t & llFromNodeID)
 {
     PLGDebug("(unix)InstanceID %lu m_llLastCommitInstanceID %lu", llInstanceID, m_llLastCommitInstanceID);
 
@@ -74,7 +74,7 @@ bool LearnerState :: GetPendingCommit(uint64_t & llInstanceID, std::string & sVa
     }
     
     sValue = oLearnState.sValue;
-
+    llFromNodeID = oLearnState.oBallot.m_llNodeID;
 
     return true;
 }
@@ -701,24 +701,24 @@ void Learner :: OnProposerSendSuccess(const PaxosMsg & oPaxosMsg)
 }
 
 
-bool Learner :: GetPendingCommit(uint64_t & llInstanceID, std::string & sValue)
+bool Learner :: GetPendingCommit(uint64_t & llInstanceID, std::string & sValue, nodeid_t & llFromNodeID)
 {
-    return m_oLearnerState.GetPendingCommit(llInstanceID, sValue);
+    return m_oLearnerState.GetPendingCommit(llInstanceID, sValue, llFromNodeID);
 }
 
-bool Learner :: FinishCommit(uint64_t & llCommitInstanceID)
+bool Learner :: FinishCommit(uint64_t & llCommitInstanceID, bool bNeedBroadcast)
 {
-    bool ok = m_oLearnerState.FinishCommit(llCommitInstanceID, [this](uint64_t llInstanceID, const LearnerState::LearnState & oLearnState, uint32_t iLastChecksum)->void {
-                                                                   // broadcast to node
-                                                                   ProposerSendSuccess(llInstanceID, oLearnState.oBallot.m_llProposalID, iLastChecksum, BroadcastMessage_Type_RunSelf_None);
-                                                                   // broadcast to follower
-                                                                   TransmitToFollower(llInstanceID, oLearnState, iLastChecksum);
-                                                               });
+    bool ok = m_oLearnerState.FinishCommit(llCommitInstanceID, bNeedBroadcast ? [this](uint64_t llInstanceID, const LearnerState::LearnState & oLearnState, uint32_t iLastChecksum)->void {
+                                                                                    // broadcast to node
+                                                                                    ProposerSendSuccess(llInstanceID, oLearnState.oBallot.m_llProposalID, iLastChecksum, BroadcastMessage_Type_RunSelf_None);
+                                                                                    // broadcast to follower
+                                                                                    TransmitToFollower(llInstanceID, oLearnState, iLastChecksum);
+                                                                                } : nullptr);
 
     SetInstanceID(m_oLearnerState.GetLastCommitInstanceID() + 1);
 
-    PLGDebug("(unix) CommitInstanceID %lu LastCommitInstanceID %lu Learner.InstanceID %lu",
-             llCommitInstanceID, m_oLearnerState.GetLastCommitInstanceID(), GetInstanceID());
+    PLGDebug("(unix) CommitInstanceID %lu LastCommitInstanceID %lu Learner.InstanceID %lu NeedBroadcast %d",
+             llCommitInstanceID, m_oLearnerState.GetLastCommitInstanceID(), GetInstanceID(), bNeedBroadcast);
 
     return ok;
 

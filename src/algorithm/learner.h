@@ -138,8 +138,8 @@ public:
 
     void OnProposerSendSuccess(const PaxosMsg & oPaxosMsg);
 
-    bool GetPendingCommit(uint64_t & llInstanceID, std::string & sValue);
-    bool FinishCommit(uint64_t & llCommitInstanceID);
+    bool GetPendingCommit(uint64_t & llInstanceID, std::string & sValue, nodeid_t & llFromNodeID);
+    bool FinishCommit(uint64_t & llCommitInstanceID, bool bNeedBroadcast);
 
 
     void TransmitToFollower(uint64_t llInstanceID, const LearnerState::LearnState & oLearnState, uint32_t iLastChecksum);

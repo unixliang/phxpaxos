@@ -674,7 +674,8 @@ void Group :: ProcessCommit()
 
     uint64_t llInstanceID{NoCheckpoint};
     std::string sValue;
-    while (m_oLearner.GetPendingCommit(llInstanceID, sValue)) {
+    nodeid_t llFromNodeID;
+    while (m_oLearner.GetPendingCommit(llInstanceID, sValue, llFromNodeID)) {
 
         PLG1Debug("(unix) pending commit. InstanceID %lu", llInstanceID);
 
@@ -754,7 +755,8 @@ void Group :: ProcessCommit()
 
         m_oCheckpointMgr.SetMaxCommitInstanceID(llInstanceID);
 
-        if (!m_oLearner.FinishCommit(llInstanceID))
+        bool bNeedBroadcast = (m_oConfig.GetMyNodeID() == llFromNodeID);
+        if (!m_oLearner.FinishCommit(llInstanceID, bNeedBroadcast))
         {
             PLG1Err("FinishCommit fail, instanceid %lu", llInstanceID);
             return;
