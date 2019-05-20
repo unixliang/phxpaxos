@@ -47,9 +47,15 @@ void LearnerState :: Init()
 
 bool LearnerState :: GetPendingCommit(uint64_t & llInstanceID, std::string & sValue)
 {
-    PLGDebug("InstanceID %lu m_llLastCommitInstanceID %lu", llInstanceID, m_llLastCommitInstanceID);
+    PLGDebug("(unix)InstanceID %lu m_llLastCommitInstanceID %lu", llInstanceID, m_llLastCommitInstanceID);
 
-    if (m_vecLearnStateList.empty() || m_vecLearnStateList.begin()->first != m_llLastCommitInstanceID + 1) {
+    if (m_vecLearnStateList.empty()) {
+        PLGDebug("(unix)LearnStateList empty");
+        return false;
+    }
+
+    if (m_vecLearnStateList.begin()->first != m_llLastCommitInstanceID + 1) {
+        PLGDebug("(unix)LearnStateList.begin.InstanceID %lu LastCommitInstanceID %lu", m_vecLearnStateList.begin()->first, m_llLastCommitInstanceID);
         return false;
     }
 
@@ -75,12 +81,16 @@ bool LearnerState :: GetPendingCommit(uint64_t & llInstanceID, std::string & sVa
 
 bool LearnerState :: FinishCommit(const uint64_t llCommitInstanceID, FinishCommitCallbackFunc fFinishCommitCallbackFunc)
 {
+    PLGDebug("(unix)CommitInstanceID %lu LastCommitInstanceID %lu", llCommitInstanceID, m_llLastCommitInstanceID);
+
     if (NoCheckpoint != m_llLastCommitInstanceID && llCommitInstanceID <= m_llLastCommitInstanceID) return true;
 
     while (!m_vecLearnStateList.empty())
     {
         auto llInstanceID = m_vecLearnStateList.begin()->first;
         auto &&oLearnState = m_vecLearnStateList.begin()->second;
+
+        PLGDebug("(unix)InstanceID %lu CommitInstanceID %lu LastCommitInstanceID %lu", llInstanceID, llCommitInstanceID, m_llLastCommitInstanceID);
 
         if (llInstanceID > llCommitInstanceID) break;
         if (llInstanceID != m_llLastCommitInstanceID + 1) return false;
@@ -128,6 +138,8 @@ bool LearnerState :: FinishCommit(const uint64_t llCommitInstanceID, FinishCommi
 void LearnerState :: LearnValueWithoutWrite(const uint64_t llInstanceID, const BallotNumber & oLearnedBallot,
                                             const std::string & sValue, uint32_t iLastChecksum)
 {
+    PLGDebug("(unix)InstanceID %lu LastChecksum %u", llInstanceID, iLastChecksum);
+
     auto &oLearnStat = m_vecLearnStateList[llInstanceID];
     oLearnStat.oBallot = oLearnedBallot;
     oLearnStat.sValue = sValue;
