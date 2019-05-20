@@ -52,7 +52,7 @@ public:
 
     void Init();
 
-    bool GetPendingCommit(uint64_t & llInstanceID, std::string & sValue);
+    bool GetPendingCommit(uint64_t & llInstanceID, std::string & sValue, nodeid_t & llFromNodeID);
     bool FinishCommit(const uint64_t llCommitInstanceID, FinishCommitCallbackFunc fFinishCommitCallbackFunc);
 
     int LearnValue(const uint64_t llInstanceID, const BallotNumber & oLearnedBallot, 

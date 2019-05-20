@@ -708,12 +708,14 @@ bool Learner :: GetPendingCommit(uint64_t & llInstanceID, std::string & sValue, 
 
 bool Learner :: FinishCommit(uint64_t & llCommitInstanceID, bool bNeedBroadcast)
 {
-    bool ok = m_oLearnerState.FinishCommit(llCommitInstanceID, bNeedBroadcast ? [this](uint64_t llInstanceID, const LearnerState::LearnState & oLearnState, uint32_t iLastChecksum)->void {
-                                                                                    // broadcast to node
-                                                                                    ProposerSendSuccess(llInstanceID, oLearnState.oBallot.m_llProposalID, iLastChecksum, BroadcastMessage_Type_RunSelf_None);
-                                                                                    // broadcast to follower
-                                                                                    TransmitToFollower(llInstanceID, oLearnState, iLastChecksum);
-                                                                                } : nullptr);
+    bool ok = m_oLearnerState.FinishCommit(llCommitInstanceID, [&](uint64_t llInstanceID, const LearnerState::LearnState & oLearnState, uint32_t iLastChecksum)->void {
+                                                                   if (bNeedBroadcast) {
+                                                                       // broadcast to node
+                                                                       ProposerSendSuccess(llInstanceID, oLearnState.oBallot.m_llProposalID, iLastChecksum, BroadcastMessage_Type_RunSelf_None);
+                                                                       // broadcast to follower
+                                                                       TransmitToFollower(llInstanceID, oLearnState, iLastChecksum);
+                                                                   }
+                                                               });
 
     SetInstanceID(m_oLearnerState.GetLastCommitInstanceID() + 1);
 
