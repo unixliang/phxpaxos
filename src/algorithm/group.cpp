@@ -765,7 +765,10 @@ void Group :: ProcessCommit()
             m_llNowInstanceID = llInstanceID + 1;
         }
         PLG1Head("[Learned] NowInstanceID increase to %lu", m_llNowInstanceID);
-        while (!m_mapInstances.empty() && m_mapInstances.begin()->first < m_llNowInstanceID) {
+
+        // keep instances in window.
+        // prevent instance from being destruct while calling Learner :: ProposerSendSuccess in Proposer :: OnAcceptReply
+        while (!m_mapInstances.empty() && m_mapInstances.begin()->first + m_oConfig.GetMaxWindowSize() < m_llNowInstanceID) {
             PLG1Debug("(unix) erase instance %lu", m_mapInstances.begin()->first);
             m_mapInstances.erase(m_mapInstances.begin());
         }
