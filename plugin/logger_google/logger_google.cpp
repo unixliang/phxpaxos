@@ -37,6 +37,7 @@ int LoggerGoogle :: GetLogger(const std::string & sModuleName, const std::string
     google::InitGoogleLogging(sModuleName.c_str());
     FLAGS_log_dir = sLogPath;
     FLAGS_stderrthreshold = google :: FATAL;
+    FLAGS_logbuflevel = -1; // (unix)flush immediately
     switch( iLogLevel )
     {
         case 1: 
