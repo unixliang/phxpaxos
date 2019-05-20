@@ -138,7 +138,9 @@ bool LearnerState :: FinishCommit(const uint64_t llCommitInstanceID, FinishCommi
 void LearnerState :: LearnValueWithoutWrite(const uint64_t llInstanceID, const BallotNumber & oLearnedBallot,
                                             const std::string & sValue, uint32_t iLastChecksum)
 {
-    PLGDebug("(unix)InstanceID %lu LastChecksum %u", llInstanceID, iLastChecksum);
+    PLGDebug("(unix)InstanceID %lu LastCommitInstanceID %lu LastChecksum %u", llInstanceID, m_llLastCommitInstanceID, iLastChecksum);
+
+    if (NoCheckpoint != m_llLastCommitInstanceID && llInstanceID <= m_llLastCommitInstanceID) return;
 
     auto &oLearnStat = m_vecLearnStateList[llInstanceID];
     oLearnStat.oBallot = oLearnedBallot;
