@@ -129,6 +129,8 @@ bool LearnerState :: FinishCommit(const uint64_t llCommitInstanceID, FinishCommi
         m_iLastChecksum = crc32(m_iLastChecksum, (const uint8_t *)oLearnState.sValue.data(), oLearnState.sValue.size(), CRC32SKIP);
         m_poLearner->SetInstanceID(llInstanceID + 1);
         m_vecLearnStateList.erase(m_vecLearnStateList.begin());
+
+        PLGDebug("(unix)commit ok. LastChecksum %u Learner.NowInstanceID %lu", m_iLastChecksum, m_poLearner->GetInstanceID());
     }
 
     return true;
