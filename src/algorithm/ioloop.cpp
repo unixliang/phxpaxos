@@ -244,6 +244,7 @@ void IOLoop :: CheckNewValue()
         m_oCommitCtxQueue.lock();
         if (m_oCommitCtxQueue.empty())
         {
+            PLGDebug("(unix) CommitCtx queue empty. InstancdID %lu", llInstanceID);
             m_oCommitCtxQueue.unlock();
             return;
         }

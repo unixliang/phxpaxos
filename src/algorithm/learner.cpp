@@ -47,7 +47,7 @@ void LearnerState :: Init()
 
 bool LearnerState :: GetPendingCommit(uint64_t & llInstanceID, std::string & sValue, nodeid_t & llFromNodeID)
 {
-    PLGDebug("(unix)InstanceID %lu m_llLastCommitInstanceID %lu", llInstanceID, m_llLastCommitInstanceID);
+    PLGDebug("(unix)InstanceID %lu LastCommitInstanceID %lu", llInstanceID, m_llLastCommitInstanceID);
 
     if (m_vecLearnStateList.empty()) {
         PLGDebug("(unix)LearnStateList empty");
