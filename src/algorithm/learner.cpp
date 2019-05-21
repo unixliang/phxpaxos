@@ -29,8 +29,8 @@ See the AUTHORS file for names of contributors.
 namespace phxpaxos
 {
 
-LearnerState :: LearnerState(const Config * poConfig, const LogStorage * poLogStorage)
-    : m_oPaxosLog(poLogStorage)
+LearnerState :: LearnerState(const Config * poConfig, const LogStorage * poLogStorage, Learner * poLearner)
+    : m_oPaxosLog(poLogStorage), m_poLearner(poLearner)
 {
     m_poConfig = (Config *)poConfig;
 
@@ -47,15 +47,15 @@ void LearnerState :: Init()
 
 bool LearnerState :: GetPendingCommit(uint64_t & llInstanceID, std::string & sValue, nodeid_t & llFromNodeID)
 {
-    PLGDebug("(unix)InstanceID %lu LastCommitInstanceID %lu", llInstanceID, m_llLastCommitInstanceID);
+    PLGDebug("(unix)InstanceID %lu Learner.NowInstanceID %lu", llInstanceID, m_poLearner->GetInstanceID());
 
     if (m_vecLearnStateList.empty()) {
         PLGDebug("(unix)LearnStateList empty");
         return false;
     }
 
-    if (m_vecLearnStateList.begin()->first != m_llLastCommitInstanceID + 1) {
-        PLGDebug("(unix)LearnStateList.begin.InstanceID %lu LastCommitInstanceID %lu", m_vecLearnStateList.begin()->first, m_llLastCommitInstanceID);
+    if (m_vecLearnStateList.begin()->first != m_poLearner->GetInstanceID()) {
+        PLGDebug("(unix)LearnStateList.begin.InstanceID %lu != Learner.NowInstanceID %lu", m_vecLearnStateList.begin()->first, m_poLearner->GetInstanceID());
         return false;
     }
 
@@ -81,19 +81,19 @@ bool LearnerState :: GetPendingCommit(uint64_t & llInstanceID, std::string & sVa
 
 bool LearnerState :: FinishCommit(const uint64_t llCommitInstanceID, FinishCommitCallbackFunc fFinishCommitCallbackFunc)
 {
-    PLGDebug("(unix)CommitInstanceID %lu LastCommitInstanceID %lu", llCommitInstanceID, m_llLastCommitInstanceID);
+    PLGDebug("(unix)CommitInstanceID %lu Learner.NowInstanceID %lu", llCommitInstanceID, m_poLearner->GetInstanceID());
 
-    if (NoCheckpoint != m_llLastCommitInstanceID && llCommitInstanceID <= m_llLastCommitInstanceID) return true;
+    if (llCommitInstanceID < m_poLearner->GetInstanceID()) return true;
 
     while (!m_vecLearnStateList.empty())
     {
         auto llInstanceID = m_vecLearnStateList.begin()->first;
         auto &&oLearnState = m_vecLearnStateList.begin()->second;
 
-        PLGDebug("(unix)InstanceID %lu CommitInstanceID %lu LastCommitInstanceID %lu", llInstanceID, llCommitInstanceID, m_llLastCommitInstanceID);
+        PLGDebug("(unix)InstanceID %lu CommitInstanceID %lu Learner.NowInstanceID %lu", llInstanceID, llCommitInstanceID, m_poLearner->GetInstanceID());
 
         if (llInstanceID > llCommitInstanceID) break;
-        if (llInstanceID != m_llLastCommitInstanceID + 1) return false;
+        if (llInstanceID != m_poLearner->GetInstanceID()) return false;
 
 
         // broadcast msg to follower
@@ -127,7 +127,7 @@ bool LearnerState :: FinishCommit(const uint64_t llCommitInstanceID, FinishCommi
 
         // prepare for next round.
         m_iLastChecksum = crc32(m_iLastChecksum, (const uint8_t *)oLearnState.sValue.data(), oLearnState.sValue.size(), CRC32SKIP);
-        ++m_llLastCommitInstanceID;
+        m_poLearner->SetInstanceID(llInstanceID + 1);
         m_vecLearnStateList.erase(m_vecLearnStateList.begin());
     }
 
@@ -138,9 +138,9 @@ bool LearnerState :: FinishCommit(const uint64_t llCommitInstanceID, FinishCommi
 void LearnerState :: LearnValueWithoutWrite(const uint64_t llInstanceID, const BallotNumber & oLearnedBallot,
                                             const std::string & sValue, uint32_t iLastChecksum)
 {
-    PLGDebug("(unix)InstanceID %lu LastCommitInstanceID %lu LastChecksum %u", llInstanceID, m_llLastCommitInstanceID, iLastChecksum);
+    PLGDebug("(unix)InstanceID %lu Learner.NowInstanceID %lu LastChecksum %u", llInstanceID, m_poLearner->GetInstanceID(), iLastChecksum);
 
-    if (NoCheckpoint != m_llLastCommitInstanceID && llInstanceID <= m_llLastCommitInstanceID) return;
+    if (llInstanceID < m_poLearner->GetInstanceID()) return;
 
     auto &oLearnStat = m_vecLearnStateList[llInstanceID];
     oLearnStat.oBallot = oLearnedBallot;
@@ -179,13 +179,6 @@ int LearnerState :: LearnValue(const uint64_t llInstanceID, const BallotNumber &
     return 0;
 }
 
-uint64_t LearnerState :: GetLastCommitInstanceID()
-{
-    return m_llLastCommitInstanceID;
-}
-
-
-
 //////////////////////////////////////////////////////////////////////////////
 
 Learner :: Learner(
@@ -196,12 +189,12 @@ Learner :: Learner(
         const IOLoop * poIOLoop,
         const CheckpointMgr * poCheckpointMgr,
         const SMFac * poSMFac)
-    : Base(poConfig, poMsgTransport, poGroup), m_oLearnerState(poConfig, poLogStorage),
+    : Base(poConfig, poMsgTransport, poGroup), m_oLearnerState(poConfig, poLogStorage, this),
     m_poGroup(poGroup),
     m_oPaxosLog(poLogStorage), m_oLearnerSender((Config *)poConfig, this, &m_oPaxosLog),
     m_oCheckpointReceiver((Config *)poConfig, (LogStorage *)poLogStorage)
 {
-    SetInstanceID(m_oLearnerState.GetLastCommitInstanceID() + 1);
+    SetInstanceID(0);
 
     m_oLearnerState.Init();
 
@@ -717,10 +710,8 @@ bool Learner :: FinishCommit(uint64_t & llCommitInstanceID, bool bNeedBroadcast)
                                                                    }
                                                                });
 
-    SetInstanceID(m_oLearnerState.GetLastCommitInstanceID() + 1);
-
-    PLGDebug("(unix) CommitInstanceID %lu LastCommitInstanceID %lu Learner.InstanceID %lu NeedBroadcast %d",
-             llCommitInstanceID, m_oLearnerState.GetLastCommitInstanceID(), GetInstanceID(), bNeedBroadcast);
+     PLGDebug("(unix) CommitInstanceID %lu Learner.NowInstanceID %lu NeedBroadcast %d",
+             llCommitInstanceID, GetInstanceID(), bNeedBroadcast);
 
     return ok;
 

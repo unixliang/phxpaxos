@@ -35,6 +35,8 @@ See the AUTHORS file for names of contributors.
 namespace phxpaxos
 {
 
+class Learner;
+
 class LearnerState
 {
 public:
@@ -47,7 +49,7 @@ public:
 
     using FinishCommitCallbackFunc = std::function<void(uint64_t llInstanceID, const LearnState & oLearnState, uint32_t iLastChecksum)>;
 
-    LearnerState(const Config * poConfig, const LogStorage * poLogStorage);
+    LearnerState(const Config * poConfig, const LogStorage * poLogStorage, Learner * poLearner);
     ~LearnerState();
 
     void Init();
@@ -61,11 +63,10 @@ public:
     void LearnValueWithoutWrite(const uint64_t llInstanceID, const BallotNumber & oLearnedBallot,
                                 const std::string & sValue, uint32_t iLastChecksum);
 
-    uint64_t GetLastCommitInstanceID();
-
 private:
     Config * m_poConfig;
     PaxosLog m_oPaxosLog;
+    Learner * m_poLearner;
 
     std::map<uint64_t, LearnState> m_vecLearnStateList;
     uint64_t m_llLastInstanceID{-1};
