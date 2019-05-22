@@ -104,8 +104,7 @@ private:
 
     const uint64_t GetInstanceIDFromKey(const std::string & sKey);
 
-public:
-//private:
+private:
     leveldb::DB * m_poLevelDB;
     PaxosComparator m_oPaxosCmp;
     bool m_bHasInit;
