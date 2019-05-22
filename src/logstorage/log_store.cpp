@@ -682,6 +682,8 @@ int LogStore :: RebuildIndexForOneFile(const int iFileID, const int iOffset,
         uint64_t llInstanceID = 0;
         memcpy(&llInstanceID, m_oTmpBuffer.GetPtr(), sizeof(uint64_t));
 
+// maybe out of order
+/*
         //InstanceID must be ascending order.
         if (llInstanceID < llNowInstanceID)
         {
@@ -691,6 +693,10 @@ int LogStore :: RebuildIndexForOneFile(const int iFileID, const int iOffset,
             break;
         }
         llNowInstanceID = llInstanceID;
+*/
+        if (llInstanceID > llNowInstanceID) {
+            llNowInstanceID = llInstanceID;
+        }
 
         AcceptorStateData oState;
         bool bBufferValid = oState.ParseFromArray(m_oTmpBuffer.GetPtr() + sizeof(uint64_t), iLen - sizeof(uint64_t));
