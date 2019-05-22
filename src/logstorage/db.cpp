@@ -370,49 +370,6 @@ int Database :: Put(const WriteOptions & oWriteOptions, const uint64_t llInstanc
     return ret;
 }
 
-int Database :: ForceDel(const WriteOptions & oWriteOptions, const uint64_t llInstanceID)
-{
-    if (!m_bHasInit)
-    {
-        PLG1Err("no init yet");
-        return -1;
-    }
-
-    string sKey = GenKey(llInstanceID);
-    string sFileID;
-    
-    leveldb::Status oStatus = m_poLevelDB->Get(leveldb::ReadOptions(), sKey, &sFileID);
-    if (!oStatus.ok())
-    {
-        if (oStatus.IsNotFound())
-        {
-            PLG1Debug("LevelDB.Get not found, instanceid %lu", llInstanceID);
-            return 0;
-        }
-        
-        PLG1Err("LevelDB.Get fail, instanceid %lu", llInstanceID);
-        return -1;
-    }
-
-    int ret = m_poValueStore->ForceDel(sFileID, llInstanceID);
-    if (ret != 0)
-    {
-        return ret;
-    }
-
-    leveldb::WriteOptions oLevelDBWriteOptions;
-    oLevelDBWriteOptions.sync = oWriteOptions.bSync;
-    
-    oStatus = m_poLevelDB->Delete(oLevelDBWriteOptions, sKey);
-    if (!oStatus.ok())
-    {
-        PLG1Err("LevelDB.Delete fail, instanceid %lu", llInstanceID);
-        return -1;
-    }
-
-    return 0;
-}
-
 int Database :: Del(const WriteOptions & oWriteOptions, const uint64_t llInstanceID)
 {
     if (!m_bHasInit)
@@ -693,16 +650,6 @@ int MultiDatabase :: Del(const WriteOptions & oWriteOptions, const int iGroupIdx
     }
     
     return m_vecDBList[iGroupIdx]->Del(oWriteOptions, llInstanceID);
-}
-
-int MultiDatabase :: ForceDel(const WriteOptions & oWriteOptions, const int iGroupIdx, const uint64_t llInstanceID)
-{
-    if (iGroupIdx >= (int)m_vecDBList.size())
-    {
-        return -2;
-    }
-    
-    return m_vecDBList[iGroupIdx]->ForceDel(oWriteOptions, llInstanceID);
 }
 
 int MultiDatabase :: GetMaxInstanceID(const int iGroupIdx, uint64_t & llInstanceID)

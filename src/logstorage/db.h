@@ -71,8 +71,6 @@ public:
 
     int Del(const WriteOptions & oWriteOptions, const uint64_t llInstanceID);
 
-    int ForceDel(const WriteOptions & oWriteOptions, const uint64_t llInstanceID);
-
     int GetMaxInstanceID(uint64_t & llInstanceID);
 
     int SetMinChosenInstanceID(const WriteOptions & oWriteOptions, const uint64_t llMinInstanceID);
@@ -138,8 +136,6 @@ public:
     int Put(const WriteOptions & oWriteOptions, const int iGroupIdx, const uint64_t llInstanceID, const std::string & sValue);
 
     int Del(const WriteOptions & oWriteOptions, const int iGroupIdx, const uint64_t llInstanceID);
-
-    int ForceDel(const WriteOptions & oWriteOptions, const int iGroupIdx, const uint64_t llInstanceID);
 
     int GetMaxInstanceID(const int iGroupIdx, uint64_t & llInstanceID);
 

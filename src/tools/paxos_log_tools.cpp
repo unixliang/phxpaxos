@@ -26,39 +26,6 @@ See the AUTHORS file for names of contributors.
 using namespace std;
 using namespace phxpaxos;
 
-void DelInstance(const int iGroupIdx, MultiDatabase & oLogStorage, uint64_t llInstanceID)
-{
-    string sValue;
-    int ret = oLogStorage.Get(iGroupIdx, llInstanceID, sValue);
-    if (ret != 0)
-    {
-        printf("get this instance %lu fail, do you want to delete it? (y/n)\n", llInstanceID);
-    }
-    else
-    {
-        printf("this instance %lu value size is %zu, do you want to delete it? (y/n)\n", 
-                llInstanceID, sValue.size());
-    }
-
-    string c = "n";
-    cin >> c;
-
-    if (c == "y")
-    {
-        WriteOptions oWriteOptions;
-        oWriteOptions.bSync = true;
-        ret = oLogStorage.ForceDel(oWriteOptions, iGroupIdx, llInstanceID);
-        if (ret != 0)
-        {
-            printf("delete instance %lu fail\n", llInstanceID);
-        }
-        else
-        {
-            printf("delete instance %lu ok\n", llInstanceID);
-        }
-    }
-}
-
 void GetInstance(const int iGroupIdx, MultiDatabase & oLogStorage, uint64_t llInstanceID)
 {
     string sValue;
@@ -105,7 +72,6 @@ int main(int argc, char ** argv)
     if (argc < 4)
     {
         printf("%s <paxos log dir> <group idx> <getmaxi>\n", argv[0]);
-        printf("%s <paxos log dir> <group idx> <del> <instanceid>\n", argv[0]);
         printf("%s <paxos log dir> <group idx> <get> <instanceid>\n", argv[0]);
         return -1;
     }
@@ -140,10 +106,6 @@ int main(int argc, char ** argv)
     {
         GetMaxInstanceID(iGroupIdx, oDefaultLogStorage);
     }
-    else if (sOP == "del")
-    {
-        DelInstance(iGroupIdx, oDefaultLogStorage, llInstanceID);
-    } 
     else if (sOP == "get")
     {
         GetInstance(iGroupIdx, oDefaultLogStorage, llInstanceID);

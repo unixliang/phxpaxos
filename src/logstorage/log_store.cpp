@@ -486,33 +486,6 @@ int LogStore :: Del(const std::string & sFileID, const uint64_t llInstanceID)
     return 0;
 }
 
-int LogStore :: ForceDel(const std::string & sFileID, const uint64_t llInstanceID)
-{
-    int iFileID = -1;
-    int iOffset = -1;
-    uint32_t iCheckSum = 0;
-    ParseFileID(sFileID, iFileID, iOffset, iCheckSum);
-
-    if (iFileID != m_iFileID)
-    {
-        PLG1Err("del fileid %d not equal to fileid %d", iFileID, m_iFileID);
-        return -2;
-    }
-
-    char sFilePath[512] = {0};
-    snprintf(sFilePath, sizeof(sFilePath), "%s/%d.f", m_sPath.c_str(), iFileID);
-
-    printf("fileid %d offset %d\n", iFileID, iOffset);
-
-    if (truncate(sFilePath, iOffset) != 0)
-    {
-        return -1;
-    }
-
-    return 0;
-}
-
-
 void LogStore :: GenFileID(const int iFileID, const int iOffset, const uint32_t iCheckSum, std::string & sFileID)
 {
     char sTmp[sizeof(int) + sizeof(int) + sizeof(uint32_t)] = {0};

@@ -62,8 +62,6 @@ public:
 
     int Del(const std::string & sFileID, const uint64_t llInstanceID);
 
-    int ForceDel(const std::string & sFileID, const uint64_t llInstanceID);
-
     ////////////////////////////////////////////
 
     const bool IsValidFileID(const std::string & sFileID);
