@@ -229,14 +229,82 @@ int Database :: GetMaxInstanceIDFileID(std::string & sFileID, uint64_t & llInsta
     return 0;
 }
 
+
+int Database :: GetMinChosenInstanceIDFileID(std::string & sFileID, uint64_t & llInstanceID)
+{
+    uint64_t llMinChosenInstanceID = 0;
+    int ret = GetMinChosenInstanceID(llMinChosenInstanceID);
+    if (ret != 0 && ret != 1)
+    {
+        return ret;
+    }
+
+    if (ret == 1)
+    {
+        sFileID = "";
+        return 0;
+    }
+
+    string sKey = GenKey(llMinChosenInstanceID);
+    
+    leveldb::Status oStatus = m_poLevelDB->Get(leveldb::ReadOptions(), sKey, &sFileID);
+    if (!oStatus.ok())
+    {
+        if (oStatus.IsNotFound())
+        {
+            BP->GetLogStorageBP()->LevelDBGetNotExist();
+            //PLG1Err("LevelDB.Get not found %s", sKey.c_str());
+            return 1;
+        }
+        
+        BP->GetLogStorageBP()->LevelDBGetFail();
+        PLG1Err("LevelDB.Get fail");
+        return -1;
+    }
+
+    llInstanceID = llMinChosenInstanceID;
+
+    return 0;
+}
+
 int Database :: RebuildOneIndex(const uint64_t llInstanceID, const std::string & sFileID)
 {
     string sKey = GenKey(llInstanceID);
 
+    bool need_rebuild{false};
+    std::string sOldFildID;
+
+    // get old fileid
+    leveldb::Status oStatus = m_poLevelDB->Get(leveldb::ReadOptions(), sKey, &sOldFildID);
+    if (!oStatus.ok())
+    {
+        if (oStatus.IsNotFound())
+        {
+            BP->GetLogStorageBP()->LevelDBGetNotExist();
+            //PLG1Err("LevelDB.Get not found %s", sKey.c_str());
+            need_rebuild = true;
+        } else {
+          BP->GetLogStorageBP()->LevelDBGetFail();
+          PLG1Err("LevelDB.Get fail");
+          return -1;
+        }
+    } else {
+      if (sFileID > sOldFildID) {
+        need_rebuild = true;
+      }
+    }
+
+    PLG1Debug("InstanceID %lu OldFileID %s FileID %s need_rebuild %d", llInstanceID, sOldFildID.c_str(), sFileID.c_str(), need_rebuild);
+
+    if (!need_rebuild) {
+      return 0;
+    }
+
+    // write new fileid
     leveldb::WriteOptions oLevelDBWriteOptions;
     oLevelDBWriteOptions.sync = false;
 
-    leveldb::Status oStatus = m_poLevelDB->Put(oLevelDBWriteOptions, sKey, sFileID);
+    oStatus = m_poLevelDB->Put(oLevelDBWriteOptions, sKey, sFileID);
     if (!oStatus.ok())
     {
         BP->GetLogStorageBP()->LevelDBPutFail();

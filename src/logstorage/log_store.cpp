@@ -522,7 +522,7 @@ int LogStore :: RebuildIndex(Database * poDatabase, int & iNowFileWriteOffset)
     string sLastFileID;
 
     uint64_t llNowInstanceID = 0;
-    int ret = poDatabase->GetMaxInstanceIDFileID(sLastFileID, llNowInstanceID);
+    int ret = poDatabase->GetMinChosenInstanceIDFileID(sLastFileID, llNowInstanceID);
     if (ret != 0)
     {
         return ret;
@@ -693,6 +693,13 @@ int LogStore :: RebuildIndexForOneFile(const int iFileID, const int iOffset,
             break;
         }
 
+
+        {
+          BallotNumber oBallot(oState.promiseid(), oState.promisenodeid());
+          // TODO: Group::SetPromiseBallot(llInstanceID, oState)
+        }
+
+
         PLG1Imp("rebuild one index ok, fileid %d offset %d instanceid %lu checksum %u buffer size %zu", 
                 iFileID, iNowOffset, llInstanceID, iFileCheckSum, iLen - sizeof(uint64_t));
 
@@ -715,6 +722,8 @@ int LogStore :: RebuildIndexForOneFile(const int iFileID, const int iOffset,
 
     return ret;
 }
+
+
 
 //////////////////////////////////////////////////////////
 

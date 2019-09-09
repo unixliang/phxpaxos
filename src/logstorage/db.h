@@ -88,6 +88,8 @@ public:
 public:
     int GetMaxInstanceIDFileID(std::string & sFileID, uint64_t & llInstanceID);
 
+    int GetMinChosenInstanceIDFileID(std::string & sFileID, uint64_t & llInstanceID);
+
     int RebuildOneIndex(const uint64_t llInstanceID, const std::string & sFileID);
     
 private:
