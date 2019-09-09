@@ -34,66 +34,7 @@ namespace phxpaxos
 #define CHECKSUM_LEN (sizeof(uint32_t))
 
 
-class BallotNumber
-{
-public:
-    BallotNumber() : m_llProposalID(0), m_llNodeID(nullnode) { }
 
-    BallotNumber(const uint64_t llProposalID, const nodeid_t llNodeID) :
-        m_llProposalID(llProposalID), m_llNodeID(llNodeID) { }
-
-    ~BallotNumber() { }
-
-    bool operator >= (const BallotNumber & other) const
-    {
-        if (m_llProposalID == other.m_llProposalID)
-        {
-            return m_llNodeID >= other.m_llNodeID;
-        }
-        else
-        {
-            return m_llProposalID >= other.m_llProposalID;
-        }
-    }
-    
-    bool operator != (const BallotNumber & other) const
-    {
-        return m_llProposalID != other.m_llProposalID 
-            || m_llNodeID != other.m_llNodeID;
-    }
-    
-    bool operator == (const BallotNumber & other) const
-    {
-        return m_llProposalID == other.m_llProposalID 
-            && m_llNodeID == other.m_llNodeID;
-    }
-
-    bool operator > (const BallotNumber & other) const
-    {
-        if (m_llProposalID == other.m_llProposalID)
-        {
-            return m_llNodeID > other.m_llNodeID;
-        }
-        else
-        {
-            return m_llProposalID > other.m_llProposalID;
-        }
-    }
-
-    const bool isnull() const
-    {
-        return m_llProposalID == 0;
-    }
-
-    void reset()
-    {
-        m_llProposalID = 0;
-        m_llNodeID = 0;
-    }
-
-    uint64_t m_llProposalID;
-    nodeid_t m_llNodeID;
-};
 
 ///////////////////////////////////////////////////////////
 
