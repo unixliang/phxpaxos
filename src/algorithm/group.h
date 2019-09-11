@@ -33,6 +33,7 @@ See the AUTHORS file for names of contributors.
 #include "cp_mgr.h"
 #include "phxpaxos/options.h"
 #include "phxpaxos/network.h"
+#include "soft_state.h"
 
 namespace phxpaxos
 {
@@ -43,6 +44,7 @@ public:
     Group(LogStorage * poLogStorage, 
             NetWork * poNetWork,    
             InsideSM * poMasterSM,
+            SoftState * poSoftState,
             const int iGroupIdx,
             const Options & oOptions);
 
@@ -78,10 +80,6 @@ public:
 
     void SetOtherProposalID(const uint64_t llOtherProposalID);
 
-    void SetPromiseBallot(const uint64_t llInstanceID, const BallotNumber &oBallotNumber);
-
-    BallotNumber GetPromiseBallot(const uint64_t llInstanceID, uint64_t & llEndPromiseInstanceID) const;
-
     void OnReceiveCheckpointMsg(const CheckpointMsg & oCheckpointMsg);
 
     bool ReceiveMsgHeaderCheck(const Header & oHeader, const nodeid_t iFromNodeID);
@@ -99,6 +97,8 @@ public:
     Learner * GetLearner();
 
     SMFac * GetSMFac();
+
+    SoftState * GetSoftState();
 
     bool HasIdleInstance(uint64_t & llInstanceID);
 
@@ -151,9 +151,6 @@ private:
     uint64_t m_llProposalID{0};
     uint64_t m_llHighestOtherProposalID{0};
 
-    std::map<uint64_t, BallotNumber> m_mapInstanceID2PromiseBallot; // for acceptor OnPrepare
-
-
 
     bool m_bStarted{false};
 
@@ -171,6 +168,8 @@ private:
     std::thread * m_poThread;
 
     std::set<uint64_t> m_seTimeoutInstnaceList;
+
+  SoftState *m_poSoftState{nullptr};
 };
     
 }

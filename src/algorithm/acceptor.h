@@ -25,6 +25,7 @@ See the AUTHORS file for names of contributors.
 #include <string>
 #include "comm_include.h"
 #include "paxos_log.h"
+#include "soft_state.h"
 
 namespace phxpaxos
 {
@@ -32,7 +33,7 @@ namespace phxpaxos
 class AcceptorState
 {
 public:
-    AcceptorState(const Config * poConfig, const LogStorage * poLogStorage);
+  AcceptorState(const Config * poConfig, const LogStorage * poLogStorage, SoftState *poSoftState);
     ~AcceptorState();
 
     void Init();
@@ -55,6 +56,8 @@ public:
     PaxosLog m_oPaxosLog;
 
     int m_iSyncTimes;
+
+  SoftState *m_poSoftState;
 };
 
 ////////////////////////////////////////////////////////////////

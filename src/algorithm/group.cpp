@@ -30,6 +30,7 @@ namespace phxpaxos
 Group :: Group(LogStorage * poLogStorage, 
             NetWork * poNetWork,    
             InsideSM * poMasterSM,
+            SoftState * poSoftState,
             const int iGroupIdx,
             const Options & oOptions) : 
     m_oOptions(oOptions),
@@ -38,16 +39,17 @@ Group :: Group(LogStorage * poLogStorage,
     m_iMyGroupIdx(iGroupIdx),
     m_oConfig(poLogStorage, oOptions.bSync, oOptions.iSyncInterval, oOptions.bUseMembership, 
             oOptions.oMyNode, oOptions.vecNodeInfoList, oOptions.vecFollowerNodeInfoList, 
-            iGroupIdx, oOptions.iGroupCount, oOptions.pMembershipChangeCallback),
+            iGroupIdx, oOptions.iGroupCount, oOptions.pMembershipChangeCallback, oOptions.iMaxWindowSize),
     m_oCommunicate(&m_oConfig, oOptions.oMyNode.GetNodeID(), oOptions.iUDPMaxSize, poNetWork),
     m_oIOLoop(&m_oConfig, this),
     m_oSMFac(m_oConfig.GetMyGroupIdx()),
     m_oCommitter(&m_oConfig, &m_oIOLoop, &m_oSMFac),
     m_oCheckpointMgr(&m_oConfig, &m_oSMFac, poLogStorage, oOptions.bUseCheckpointReplayer),
     m_oLearner(&m_oConfig, &m_oCommunicate, this, poLogStorage, &m_oIOLoop, &m_oCheckpointMgr, &m_oSMFac),
-    m_iInitRet(-1), m_poThread(nullptr)
+    m_iInitRet(-1), m_poThread(nullptr),
+    m_poSoftState(poSoftState)
 {
-    m_oConfig.SetMasterSM(poMasterSM);
+  m_oConfig.SetMasterSM(poMasterSM);
 }
 
 Group :: ~Group()
@@ -85,11 +87,16 @@ int Group :: LoadMaxInstanceID(uint64_t & llInstanceID)
         return ret;
     }
 
-    m_llProposalID = oState.promiseid();
+    m_llProposalID = oState.promiseid(); // TODO(unix): the max proposalid should be maintained by softstate
+
+/*
+    // m_mapInstanceID2PromiseBallot should be maintained by softstate
     m_mapInstanceID2PromiseBallot.clear();
     m_mapInstanceID2PromiseBallot[llInstanceID] = BallotNumber(oState.promiseid(), oState.promisenodeid());
+*/
 
    /*
+
     m_oPromiseBallot.m_llProposalID = oState.promiseid();
     m_oPromiseBallot.m_llNodeID = oState.promisenodeid();
     m_oAcceptedBallot.m_llProposalID = oState.acceptedid();
@@ -337,6 +344,9 @@ SMFac * Group :: GetSMFac()
     return &m_oSMFac;
 }
 
+SoftState * Group :: GetSoftState() {
+  return m_poSoftState;
+}
 
 int Group :: OnReceiveMessage(const char * pcMessage, const int iMessageLen)
 {
@@ -457,43 +467,6 @@ void Group :: SetOtherProposalID(const uint64_t llOtherProposalID)
     {
         m_llHighestOtherProposalID = llOtherProposalID;
     }
-}
-
-void Group :: SetPromiseBallot(const uint64_t llInstanceID, const BallotNumber &oBallotNumber)
-{
-    uint64_t llEndPromiseInstanceID{NoCheckpoint};
-    BallotNumber oPromiseBallotNumber = GetPromiseBallot(llInstanceID, llEndPromiseInstanceID);
-
-    if (!(oBallotNumber > oPromiseBallotNumber)) return;
-
-    m_mapInstanceID2PromiseBallot[llInstanceID] = oBallotNumber;
-
-    PLG1Debug("(unix) set new PromiseBallot(ProposalID: %lu, NodeID: %lu). InstanceID %lu", oBallotNumber.m_llProposalID, oBallotNumber.m_llNodeID, llInstanceID);
-
-    while (m_mapInstanceID2PromiseBallot.size() > m_oConfig.GetMaxWindowSize())
-    {
-        m_mapInstanceID2PromiseBallot.erase(m_mapInstanceID2PromiseBallot.begin());
-    }
-}
-
-BallotNumber Group :: GetPromiseBallot(const uint64_t llInstanceID, uint64_t & llEndPromiseInstanceID) const
-{
-    llEndPromiseInstanceID = NoCheckpoint;
-
-    auto it = m_mapInstanceID2PromiseBallot.upper_bound(llInstanceID);
-    if (m_mapInstanceID2PromiseBallot.end() != it) {
-        llEndPromiseInstanceID = it->first;
-    }
-    if (m_mapInstanceID2PromiseBallot.begin() == it) {
-        PLG1Debug("(unix) PromiseBallot empty. InstanceID %lu EndPromiseInstanceID %lu", llInstanceID, llEndPromiseInstanceID);
-        return BallotNumber();
-    }
-
-    --it;
-
-    PLG1Debug("(unix) PromiseBallot(ProposalID: %lu, NodeID: %lu). InstanceID %lu EndPromiseInstanceID %lu", it->second.m_llProposalID, it->second.m_llNodeID, llInstanceID, llEndPromiseInstanceID);
-
-    return it->second;
 }
 
 void Group :: OnReceiveCheckpointMsg(const CheckpointMsg & oCheckpointMsg)
@@ -782,8 +755,9 @@ bool Group :: NeedPrepare(const uint64_t llInstanceID)
 {
     BallotNumber oMyBallotNumber(m_llProposalID, m_oConfig.GetMyNodeID());
 
+    auto poSoftState = GetSoftState();
     uint64_t llEndPromiseInstanceID{NoCheckpoint};
-    BallotNumber oPromiseBallotNumber = GetPromiseBallot(llInstanceID, llEndPromiseInstanceID);
+    BallotNumber oPromiseBallotNumber = poSoftState->GetPromiseBallot(llInstanceID, llEndPromiseInstanceID);
 
     if (oPromiseBallotNumber.isnull()) {
         return true;

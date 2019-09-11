@@ -86,6 +86,14 @@ int PNode :: InitLogStorage(const Options & oOptions, LogStorage *& poLogStorage
         return -2;
     }
 
+    // init softstat
+    {
+      m_oMultiSoftState.Init(oOptions);
+      for (int iGroupIdx = 0; iGroupIdx < oOptions.iGroupCount; iGroupIdx++) {
+        m_oDefaultLogStorage.SetGroupCtx(iGroupIdx, m_oMultiSoftState.GetSoftState(iGroupIdx));
+      }
+    }
+
     int ret = m_oDefaultLogStorage.Init(oOptions.sLogStoragePath, oOptions.iGroupCount);
     if (ret != 0)
     {
@@ -266,7 +274,7 @@ int PNode :: Init(const Options & oOptions, NetWork *& poNetWork)
     //step4 build grouplist
     for (int iGroupIdx = 0; iGroupIdx < oOptions.iGroupCount; iGroupIdx++)
     {
-        Group * poGroup = new Group(poLogStorage, poNetWork, m_vecMasterList[iGroupIdx]->GetMasterSM(), iGroupIdx, oOptions);
+        Group * poGroup = new Group(poLogStorage, poNetWork, m_vecMasterList[iGroupIdx]->GetMasterSM(), m_oMultiSoftState.GetSoftState(iGroupIdx), iGroupIdx, oOptions);
         assert(poGroup != nullptr);
         m_vecGroupList.push_back(poGroup);
     }

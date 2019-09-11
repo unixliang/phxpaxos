@@ -37,7 +37,8 @@ Config :: Config(
         const FollowerNodeInfoList & vecFollowerNodeInfoList,
         const int iMyGroupIdx,
         const int iGroupCount,
-        MembershipChangeCallback pMembershipChangeCallback)
+        MembershipChangeCallback pMembershipChangeCallback,
+        const int iMaxWindowSize)
     : m_bLogSync(bLogSync), 
     m_iSyncInterval(iSyncInterval),
     m_bUseMembership(bUseMembership),
@@ -46,26 +47,27 @@ Config :: Config(
     m_iMyGroupIdx(iMyGroupIdx),
     m_iGroupCount(iGroupCount),
     m_oSystemVSM(iMyGroupIdx, oMyNode.GetNodeID(), poLogStorage, pMembershipChangeCallback),
-    m_poMasterSM(nullptr)
+      m_poMasterSM(nullptr),
+      m_iMaxWindowSize(iMaxWindowSize)
 {
-    m_vecNodeInfoList = vecNodeInfoList;
+       m_vecNodeInfoList = vecNodeInfoList;
 
-    m_bIsIMFollower = false;
-    m_iFollowToNodeID = nullnode;
+       m_bIsIMFollower = false;
+       m_iFollowToNodeID = nullnode;
 
-    for (auto & oFollowerNodeInfo : vecFollowerNodeInfoList)
-    {
+       for (auto & oFollowerNodeInfo : vecFollowerNodeInfoList)
+       {
         if (oFollowerNodeInfo.oMyNode.GetNodeID() == oMyNode.GetNodeID())
         {
-            PLG1Head("I'm follower, ip %s port %d nodeid %lu",
-                    oMyNode.GetIP().c_str(), oMyNode.GetPort(), oMyNode.GetNodeID());
-            m_bIsIMFollower = true;
-            m_iFollowToNodeID = oFollowerNodeInfo.oFollowNode.GetNodeID();
+         PLG1Head("I'm follower, ip %s port %d nodeid %lu",
+                  oMyNode.GetIP().c_str(), oMyNode.GetPort(), oMyNode.GetNodeID());
+         m_bIsIMFollower = true;
+         m_iFollowToNodeID = oFollowerNodeInfo.oFollowNode.GetNodeID();
 
-            InsideOptions::Instance()->SetAsFollower();
+         InsideOptions::Instance()->SetAsFollower();
+         }
         }
-    }
-}
+       }
 
 Config :: ~Config()
 {

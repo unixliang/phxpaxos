@@ -41,7 +41,8 @@ public:
         const FollowerNodeInfoList & vecFollowerNodeInfoList,
         const int iMyGroupIdx,
         const int iGroupCount,
-        MembershipChangeCallback pMembershipChangeCallback);
+        MembershipChangeCallback pMembershipChangeCallback,
+        const int iMaxWindowSize);
 
     ~Config();
 
@@ -131,7 +132,7 @@ private:
     std::map<nodeid_t, uint64_t> m_mapTmpNodeOnlyForLearn;
     std::map<nodeid_t, uint64_t> m_mapMyFollower;
 
-    uint32_t m_iMaxWindowSize{100};
+    uint32_t m_iMaxWindowSize{0};
 };
 
 }

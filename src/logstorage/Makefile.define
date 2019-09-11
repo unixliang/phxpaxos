@@ -19,7 +19,7 @@
 
 allobject=liblogstorage.a 
 
-LOGSTORAGE_OBJ=db.o paxos_log.o log_store.o system_variables_store.o
+LOGSTORAGE_OBJ=db.o paxos_log.o log_store.o system_variables_store.o soft_state.o
 
 LOGSTORAGE_LIB=logstorage src/comm:comm include:include
 

@@ -22,6 +22,7 @@ See the AUTHORS file for names of contributors.
 #pragma once
 
 #include <string>
+#include <map>
 #include <typeinfo>
 #include <inttypes.h>
 

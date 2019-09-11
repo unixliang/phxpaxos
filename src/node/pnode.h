@@ -24,6 +24,7 @@ See the AUTHORS file for names of contributors.
 #include "phxpaxos/node.h"
 #include "phxpaxos/options.h"
 #include <vector>
+#include "soft_state.h"
 #include "db.h"
 #include "dfnetwork.h"
 #include "group.h"
@@ -123,6 +124,8 @@ private:
     NotifierPool m_oNotifierPool;
 
     nodeid_t m_iMyNodeID;
+
+    MultiSoftState m_oMultiSoftState;
 };
     
 }

@@ -233,10 +233,23 @@ int Database :: GetMaxInstanceIDFileID(std::string & sFileID, uint64_t & llInsta
 int Database :: GetMinChosenInstanceIDFileID(std::string & sFileID, uint64_t & llInstanceID)
 {
     uint64_t llMinChosenInstanceID = 0;
-    int ret = GetMinChosenInstanceID(llMinChosenInstanceID);
+    static uint64_t llMinKey = MINCHOSEN_KEY;
+    std::string sValue;
+    int ret = GetFromLevelDB(llMinKey, sValue);
     if (ret != 0 && ret != 1)
     {
+        PLG1Err("fail, ret %d", ret);
         return ret;
+    }
+
+    if (ret == 0)
+    {
+      if (sValue.size() != sizeof(uint64_t))
+      {
+        PLG1Err("fail, mininstanceid size wrong");
+        return -2;
+      }
+      memcpy(&llMinChosenInstanceID, sValue.data(), sizeof(uint64_t));
     }
 
     if (ret == 1)
@@ -313,6 +326,14 @@ int Database :: RebuildOneIndex(const uint64_t llInstanceID, const std::string &
     }
 
     return 0;
+}
+
+void Database::SetSoftState(SoftState *poSoftState) {
+  m_poSoftState = poSoftState;
+}
+
+SoftState * Database::GetSoftState() {
+  return m_poSoftState;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -668,6 +689,10 @@ int MultiDatabase :: Init(const std::string & sDBPath, const int iGroupCount)
         Database * poDB = new Database();
         assert(poDB != nullptr);
         m_vecDBList.push_back(poDB);
+
+        SoftState *poSoftState = static_cast<SoftState*>(GetGroupCtx(iGroupIdx));
+        assert(poSoftState != nullptr);
+        poDB->SetSoftState(poSoftState);
 
         if (poDB->Init(sGroupDBPath, iGroupIdx) != 0)
         {

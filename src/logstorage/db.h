@@ -29,6 +29,7 @@ See the AUTHORS file for names of contributors.
 #include "comm_include.h"
 #include "phxpaxos/storage.h"
 #include "log_store.h"
+#include "soft_state.h"
 
 namespace phxpaxos
 {
@@ -91,7 +92,12 @@ public:
     int GetMinChosenInstanceIDFileID(std::string & sFileID, uint64_t & llInstanceID);
 
     int RebuildOneIndex(const uint64_t llInstanceID, const std::string & sFileID);
-    
+
+public:
+  void SetSoftState(SoftState *poSoftState);
+
+  SoftState * GetSoftState();
+
 private:
     int ValueToFileID(const WriteOptions & oWriteOptions, const uint64_t llInstanceID, const std::string & sValue, std::string & sFileID);
 
@@ -118,6 +124,9 @@ private:
 
 private:
     TimeStat m_oTimeStat;
+
+private:
+  SoftState *m_poSoftState{nullptr};
 };
 
 //////////////////////////////////////////

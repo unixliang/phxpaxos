@@ -126,6 +126,7 @@ Options :: Options()
     bUseCheckpointReplayer = false;
     bUseBatchPropose = false;
     bOpenChangeValueBeforePropose = false;
+    iMaxWindowSize = 100;
 }
     
 }

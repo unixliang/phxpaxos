@@ -239,6 +239,11 @@ public:
     //Only bOpenChangeValueBeforePropose is true, that will callback sm's function(BeforePropose).
     //Default is false;
     bool bOpenChangeValueBeforePropose;
+
+    //optional
+    //pipeline window size.
+    //Default is 100;
+    int iMaxWindowSize;
 };
     
 }
