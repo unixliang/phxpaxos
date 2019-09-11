@@ -66,6 +66,17 @@ public:
     virtual int SetMasterVariables(const WriteOptions & oWriteOptions, const int iGroupIdx, const std::string & sBuffer) = 0;
 
     virtual int GetMasterVariables(const int iGroupIdx, std::string & sBuffer) = 0;
+
+  void SetGroupCtx(const int iGroupIdx, void *ctx) {
+    m_mapGroupCtx[iGroupIdx] = ctx;
+  }
+
+  void *GetGroupCtx(const int iGroupIdx) {
+    return m_mapGroupCtx[iGroupIdx];
+  }
+
+private:
+  std::map<int, void*> m_mapGroupCtx;
 };
 
 }
