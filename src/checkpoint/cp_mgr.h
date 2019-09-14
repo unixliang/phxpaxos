@@ -32,6 +32,8 @@ namespace phxpaxos
 class CheckpointMgr
 {
 public:
+    using MinChosenInstanceIDUpdateCallbackFunc = std::function<void(const uint64_t /*llMinChosenInstanceID*/)>;
+
     CheckpointMgr(
             Config * poConfig,
             SMFac * poSMFac, 
@@ -70,6 +72,9 @@ public:
 
     void SetMaxCommitInstanceID(const uint64_t llMaxCommitInstanceID);
 
+public:
+    void SetMinChosenInstanceIDUpdateCallbackFunc(MinChosenInstanceIDUpdateCallbackFunc fMinChosenInstanceIDUpdateCallbackFunc);
+
 private:
     Config * m_poConfig;
     LogStorage * m_poLogStorage;
@@ -87,6 +92,9 @@ private:
     uint64_t m_llLastAskforCheckpointTime;
 
     bool m_bUseCheckpointReplayer;
+
+private:
+  MinChosenInstanceIDUpdateCallbackFunc m_fMinChosenInstanceIDUpdateCallbackFunc;
 };
 
 }

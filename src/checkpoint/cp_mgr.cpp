@@ -163,6 +163,10 @@ int CheckpointMgr :: SetMinChosenInstanceID(const uint64_t llMinChosenInstanceID
 
     m_llMinChosenInstanceID = llMinChosenInstanceID;
 
+    if (m_fMinChosenInstanceIDUpdateCallbackFunc) {
+      m_fMinChosenInstanceIDUpdateCallbackFunc(m_llMinChosenInstanceID);
+    }
+
     return 0;
 }
 
@@ -175,6 +179,11 @@ void CheckpointMgr :: SetMaxCommitInstanceID(const uint64_t llMaxCommitInstanceI
 {
     m_llMaxCommitInstanceID = llMaxCommitInstanceID;
 }
+
+void CheckpointMgr::SetMinChosenInstanceIDUpdateCallbackFunc(MinChosenInstanceIDUpdateCallbackFunc fMinChosenInstanceIDUpdateCallbackFunc) {
+  m_fMinChosenInstanceIDUpdateCallbackFunc = fMinChosenInstanceIDUpdateCallbackFunc;
+}
+
 
 const uint64_t CheckpointMgr :: GetMaxCommitInstanceID() const
 {
