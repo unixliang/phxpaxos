@@ -690,10 +690,6 @@ int MultiDatabase :: Init(const std::string & sDBPath, const int iGroupCount)
         assert(poDB != nullptr);
         m_vecDBList.push_back(poDB);
 
-        SoftState *poSoftState = static_cast<SoftState*>(GetGroupCtx(iGroupIdx));
-        assert(poSoftState != nullptr);
-        poDB->SetSoftState(poSoftState);
-
         if (poDB->Init(sGroupDBPath, iGroupIdx) != 0)
         {
             return -1;

@@ -694,11 +694,6 @@ int LogStore :: RebuildIndexForOneFile(const int iFileID, const int iOffset,
         }
 
 
-        // update softstate
-        poDatabase->GetSoftState()->Update(llInstanceID, oState);
-
-
-
         PLG1Imp("rebuild one index ok, fileid %d offset %d instanceid %lu checksum %u buffer size %zu", 
                 iFileID, iNowOffset, llInstanceID, iFileCheckSum, iLen - sizeof(uint64_t));
 

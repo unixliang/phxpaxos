@@ -45,38 +45,19 @@ void LearnerState :: Init()
 {
 }
 
-bool LearnerState :: GetPendingCommit(uint64_t & llInstanceID, std::string & sValue, nodeid_t & llFromNodeID)
+std::shared_ptr<LearnerState::LearnState> LearnerState :: GetPendingCommit()
 {
-    PLGDebug("(unix)InstanceID %lu Learner.NowInstanceID %lu", llInstanceID, m_poLearner->GetInstanceID());
-
     if (m_vecLearnStateList.empty()) {
         PLGDebug("(unix)LearnStateList empty");
-        return false;
+        return nullptr;
     }
 
     if (m_vecLearnStateList.begin()->first != m_poLearner->GetInstanceID()) {
         PLGDebug("(unix)LearnStateList.begin.InstanceID %lu != Learner.NowInstanceID %lu", m_vecLearnStateList.begin()->first, m_poLearner->GetInstanceID());
-        return false;
+        return nullptr;
     }
 
-    llInstanceID = m_vecLearnStateList.begin()->first;
-
-    auto &&oLearnState = m_vecLearnStateList.begin()->second;
-
-    PLGDebug("LearnState.LastChecksum %u m_iLastChecksum %u", oLearnState.iLastChecksum, m_iLastChecksum);
-
-    // check checksum
-    if (oLearnState.iLastChecksum && oLearnState.iLastChecksum != m_iLastChecksum) {
-        PLGErr("checksum fail, InstanceID %lu my last checksum %u other last checksum %u", 
-               llInstanceID, m_iLastChecksum, oLearnState.iLastChecksum);
-        //BP->GetInstanceBP()->ChecksumLogicFail(); // TODO
-        assert(oLearnState.iLastChecksum == m_iLastChecksum);
-    }
-    
-    sValue = oLearnState.sValue;
-    llFromNodeID = oLearnState.oBallot.m_llNodeID;
-
-    return true;
+    return m_vecLearnStateList.begin()->second;
 }
 
 bool LearnerState :: FinishCommit(const uint64_t llCommitInstanceID, FinishCommitCallbackFunc fFinishCommitCallbackFunc)
@@ -88,7 +69,7 @@ bool LearnerState :: FinishCommit(const uint64_t llCommitInstanceID, FinishCommi
     while (!m_vecLearnStateList.empty())
     {
         auto llInstanceID = m_vecLearnStateList.begin()->first;
-        auto &&oLearnState = m_vecLearnStateList.begin()->second;
+        auto poLearnState = m_vecLearnStateList.begin()->second;
 
         PLGDebug("(unix)InstanceID %lu CommitInstanceID %lu Learner.NowInstanceID %lu", llInstanceID, llCommitInstanceID, m_poLearner->GetInstanceID());
 
@@ -96,41 +77,17 @@ bool LearnerState :: FinishCommit(const uint64_t llCommitInstanceID, FinishCommi
         if (llInstanceID != m_poLearner->GetInstanceID()) return false;
 
 
+        // maybe fsync checksum
         // broadcast msg to follower
         if (fFinishCommitCallbackFunc)
         {
-            fFinishCommitCallbackFunc(llInstanceID, oLearnState, m_iLastChecksum);
+            fFinishCommitCallbackFunc(llInstanceID, *poLearnState);
         }
 
-        // wrtie m_iLastChecksum into AcceptorStat, For possible follow-up SendLearnValue.
-        {
-            AcceptorStateData oState;
-            oState.set_instanceid(llInstanceID);
-            oState.set_acceptedvalue(oLearnState.sValue);
-            oState.set_promiseid(oLearnState.oBallot.m_llProposalID);
-            oState.set_promisenodeid(oLearnState.oBallot.m_llNodeID);
-            oState.set_acceptedid(oLearnState.oBallot.m_llProposalID);
-            oState.set_acceptednodeid(oLearnState.oBallot.m_llNodeID);
-            oState.set_checksum(m_iLastChecksum);
-
-            WriteOptions oWriteOptions;
-            oWriteOptions.bSync = false;
-
-            int ret = m_oPaxosLog.WriteState(oWriteOptions, m_poConfig->GetMyGroupIdx(), llInstanceID, oState);
-            if (ret != 0)
-            {
-                PLGErr("LogStorage.WriteLog fail, InstanceID %lu ValueLen %zu ret %d",
-                       llInstanceID, oLearnState.sValue.size(), ret);
-                return false;
-            }
-        }
-
-        // prepare for next round.
-        m_iLastChecksum = crc32(m_iLastChecksum, (const uint8_t *)oLearnState.sValue.data(), oLearnState.sValue.size(), CRC32SKIP);
         m_poLearner->SetInstanceID(llInstanceID + 1);
         m_vecLearnStateList.erase(m_vecLearnStateList.begin());
 
-        PLGDebug("(unix)commit ok. LastChecksum %u Learner.NowInstanceID %lu", m_iLastChecksum, m_poLearner->GetInstanceID());
+        PLGDebug("(unix)commit ok. Learner.NowInstanceID %lu", m_poLearner->GetInstanceID());
     }
 
     return true;
@@ -144,10 +101,13 @@ void LearnerState :: LearnValueWithoutWrite(const uint64_t llInstanceID, const B
 
     if (llInstanceID < m_poLearner->GetInstanceID()) return;
 
-    auto &oLearnStat = m_vecLearnStateList[llInstanceID];
-    oLearnStat.oBallot = oLearnedBallot;
-    oLearnStat.sValue = sValue;
-    oLearnStat.iLastChecksum = iLastChecksum;
+    std::shared_ptr<LearnState> poLearnState(new LearnState());
+    poLearnState->llInstanceID = llInstanceID;
+    poLearnState->oBallot = oLearnedBallot;
+    poLearnState->sValue = sValue;
+    poLearnState->iLastChecksum = iLastChecksum;
+
+    m_vecLearnStateList[llInstanceID] = poLearnState;
 }
 
 int LearnerState :: LearnValue(const uint64_t llInstanceID, const BallotNumber & oLearnedBallot, 
@@ -696,20 +656,47 @@ void Learner :: OnProposerSendSuccess(const PaxosMsg & oPaxosMsg)
 }
 
 
-bool Learner :: GetPendingCommit(uint64_t & llInstanceID, std::string & sValue, nodeid_t & llFromNodeID)
+std::shared_ptr<LearnerState::LearnState> Learner :: GetPendingCommit()
 {
-    return m_oLearnerState.GetPendingCommit(llInstanceID, sValue, llFromNodeID);
+    return m_oLearnerState.GetPendingCommit();
 }
 
 bool Learner :: FinishCommit(uint64_t & llCommitInstanceID, bool bNeedBroadcast)
 {
-    bool ok = m_oLearnerState.FinishCommit(llCommitInstanceID, [&](uint64_t llInstanceID, const LearnerState::LearnState & oLearnState, uint32_t iLastChecksum)->void {
-                                                                   if (bNeedBroadcast) {
-                                                                       // broadcast to node
-                                                                       ProposerSendSuccess(llInstanceID, oLearnState.oBallot.m_llProposalID, iLastChecksum, BroadcastMessage_Type_RunSelf_None);
-                                                                       // broadcast to follower
-                                                                       TransmitToFollower(llInstanceID, oLearnState, iLastChecksum);
+    bool ok = m_oLearnerState.FinishCommit(llCommitInstanceID, [&](uint64_t llInstanceID, const LearnerState::LearnState & oLearnState)->void {
+                                                                 uint32_t iLastChecksum = m_poGroup->GetSoftState()->GetLastChecksum(llCommitInstanceID);
+
+                                                                 // wrtie iLastChecksum into AcceptorStat, For possible follow-up SendLearnValue.
+                                                                 if (llInstanceID > m_llLastSyncChecksumInstanceID + 100) {
+                                                                   m_llLastSyncChecksumInstanceID = llInstanceID;
+
+                                                                   AcceptorStateData oState;
+                                                                   oState.set_instanceid(llInstanceID);
+                                                                   oState.set_acceptedvalue(oLearnState.sValue);
+                                                                   oState.set_promiseid(oLearnState.oBallot.m_llProposalID);
+                                                                   oState.set_promisenodeid(oLearnState.oBallot.m_llNodeID);
+                                                                   oState.set_acceptedid(oLearnState.oBallot.m_llProposalID);
+                                                                   oState.set_acceptednodeid(oLearnState.oBallot.m_llNodeID);
+                                                                   oState.set_checksum(iLastChecksum);
+
+                                                                   WriteOptions oWriteOptions;
+                                                                   oWriteOptions.bSync = false;
+
+                                                                   int ret = m_oPaxosLog.WriteState(oWriteOptions, m_poConfig->GetMyGroupIdx(), llInstanceID, oState);
+                                                                   if (ret != 0)
+                                                                   {
+                                                                     PLGErr("LogStorage.WriteLog fail, InstanceID %lu ValueLen %zu ret %d",
+                                                                            llInstanceID, oLearnState.sValue.size(), ret);
+                                                                     return;
                                                                    }
+                                                                 }
+
+                                                                 if (bNeedBroadcast) {
+                                                                   // broadcast to node
+                                                                   ProposerSendSuccess(llInstanceID, oLearnState.oBallot.m_llProposalID, iLastChecksum, BroadcastMessage_Type_RunSelf_None);
+                                                                   // broadcast to follower
+                                                                   TransmitToFollower(llInstanceID, oLearnState, iLastChecksum);
+                                                                 }
                                                                });
 
      PLGDebug("(unix) CommitInstanceID %lu Learner.NowInstanceID %lu NeedBroadcast %d",

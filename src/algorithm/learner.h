@@ -42,19 +42,21 @@ class LearnerState
 public:
     struct LearnState
     {
+        uint64_t llInstanceID{-1};
         BallotNumber oBallot;
         std::string sValue;
         uint32_t iLastChecksum{0};
     };
 
-    using FinishCommitCallbackFunc = std::function<void(uint64_t llInstanceID, const LearnState & oLearnState, uint32_t iLastChecksum)>;
+    using FinishCommitCallbackFunc = std::function<void(uint64_t llInstanceID, const LearnState & oLearnState)>;
 
     LearnerState(const Config * poConfig, const LogStorage * poLogStorage, Learner * poLearner);
     ~LearnerState();
 
     void Init();
 
-    bool GetPendingCommit(uint64_t & llInstanceID, std::string & sValue, nodeid_t & llFromNodeID);
+
+    std::shared_ptr<LearnState> GetPendingCommit();
     bool FinishCommit(const uint64_t llCommitInstanceID, FinishCommitCallbackFunc fFinishCommitCallbackFunc);
 
     int LearnValue(const uint64_t llInstanceID, const BallotNumber & oLearnedBallot, 
@@ -68,10 +70,7 @@ private:
     PaxosLog m_oPaxosLog;
     Learner * m_poLearner;
 
-    std::map<uint64_t, LearnState> m_vecLearnStateList;
-    uint64_t m_llLastInstanceID{-1};
-    uint32_t m_iLastChecksum{0};
-    uint64_t m_llLastCommitInstanceID{-1};
+    std::map<uint64_t, std::shared_ptr<LearnState>> m_vecLearnStateList;
 };
 
 ///////////////////////////////////////////////////////
@@ -139,7 +138,7 @@ public:
 
     void OnProposerSendSuccess(const PaxosMsg & oPaxosMsg);
 
-    bool GetPendingCommit(uint64_t & llInstanceID, std::string & sValue, nodeid_t & llFromNodeID);
+    std::shared_ptr<LearnerState::LearnState> GetPendingCommit();
     bool FinishCommit(uint64_t & llCommitInstanceID, bool bNeedBroadcast);
 
 
@@ -221,7 +220,7 @@ private:
     CheckpointSender * m_poCheckpointSender;
     CheckpointReceiver m_oCheckpointReceiver;
 
-
+    uint64_t m_llLastSyncChecksumInstanceID{0};
 };
 
 }

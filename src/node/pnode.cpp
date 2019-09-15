@@ -87,12 +87,8 @@ int PNode :: InitLogStorage(const Options & oOptions, LogStorage *& poLogStorage
     }
 
     // init softstat
-    {
-      m_oMultiSoftState.Init(oOptions);
-      for (int iGroupIdx = 0; iGroupIdx < oOptions.iGroupCount; iGroupIdx++) {
-        m_oDefaultLogStorage.SetGroupCtx(iGroupIdx, m_oMultiSoftState.GetSoftState(iGroupIdx));
-      }
-    }
+    m_oMultiSoftState.Init(oOptions);
+
 
     int ret = m_oDefaultLogStorage.Init(oOptions.sLogStoragePath, oOptions.iGroupCount);
     if (ret != 0)

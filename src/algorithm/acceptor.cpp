@@ -98,7 +98,7 @@ int AcceptorState :: Persist(const uint64_t llInstanceID, const BallotNumber & o
         return ret;
     }
 
-    m_poSoftState->Update(llInstanceID, oState);
+    m_poSoftState->UpdateOnPersist(llInstanceID, oState);
 
     PLGImp("GroupIdx %d InstanceID %lu PromiseID %lu PromiseNodeID %lu "
             "AccectpedID %lu AcceptedNodeID %lu ValueLen %zu", 

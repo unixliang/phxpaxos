@@ -167,6 +167,10 @@ void Group :: Init()
         return;
     }
 
+    m_oCheckpointMgr.SetMinChosenInstanceIDUpdateCallbackFunc([&](const uint64_t llMinChosenInstanceID) {
+                                                                m_poSoftState->OnMinChosenInstanceIDUpdate(llMinChosenInstanceID);
+                                                              });
+
     //inside sm
     AddStateMachine(m_oConfig.GetSystemVSM());
     AddStateMachine(m_oConfig.GetMasterSM());
@@ -645,21 +649,31 @@ void Group :: ProcessCommit()
 {
     PLG1Debug("(unix) begin");
 
-    uint64_t llInstanceID{NoCheckpoint};
-    std::string sValue;
-    nodeid_t llFromNodeID;
-    while (m_oLearner.GetPendingCommit(llInstanceID, sValue, llFromNodeID)) {
+    std::shared_ptr<LearnerState::LearnState> poLearnState{nullptr};
+    while (poLearnState = m_oLearner.GetPendingCommit()) {
 
-        PLG1Debug("(unix) pending commit. InstanceID %lu", llInstanceID);
+        m_poSoftState->UpdateOnCommit(poLearnState->llInstanceID, poLearnState->sValue);
+        auto iMyLastChecksum = m_poSoftState->GetLastChecksum(poLearnState->llInstanceID);
+        PLG1Debug("(unix) InstanceID %lu local LastChecksum %u peer LastChecksum %u", poLearnState->llInstanceID, iMyLastChecksum, poLearnState->iLastChecksum);
+        if (poLearnState->iLastChecksum && iMyLastChecksum) { // need check
+          if (poLearnState->iLastChecksum != iMyLastChecksum) {
+            PLG1Err("checksum fail, InstanceID %lu my last checksum %u other last checksum %u", 
+                    poLearnState->llInstanceID, iMyLastChecksum, poLearnState->iLastChecksum);
+            //BP->GetInstanceBP()->ChecksumLogicFail(); // TODO
+            assert(poLearnState->iLastChecksum == iMyLastChecksum);
+          }
+        }
+
+        PLG1Debug("(unix) pending commit. InstanceID %lu", poLearnState->llInstanceID);
 
         BP->GetInstanceBP()->OnInstanceLearned();
 
         SMCtx * poSMCtx = nullptr;
 
-        auto poInstance = GetInstance(llInstanceID);
+        auto poInstance = GetInstance(poLearnState->llInstanceID);
         if (!poInstance)
         {
-            PLG1Err("poInstance null, instanceid %lu", llInstanceID);
+            PLG1Err("poInstance null, instanceid %lu", poLearnState->llInstanceID);
             return;
         }
 
@@ -668,7 +682,7 @@ void Group :: ProcessCommit()
         {
             PLG1Debug("(unix) CommitCtx exist");
 
-            bool bIsMyCommit = poCommitCtx->IsMyCommit(llInstanceID, sValue, poSMCtx);
+            bool bIsMyCommit = poCommitCtx->IsMyCommit(poLearnState->llInstanceID, poLearnState->sValue, poSMCtx);
 
             if (!bIsMyCommit)
             {
@@ -686,15 +700,15 @@ void Group :: ProcessCommit()
         }
 
 
-        if (!m_oSMFac.Execute(m_iMyGroupIdx, llInstanceID, sValue, poSMCtx))
+        if (!m_oSMFac.Execute(m_iMyGroupIdx, poLearnState->llInstanceID, poLearnState->sValue, poSMCtx))
         {
             BP->GetInstanceBP()->OnInstanceLearnedSMExecuteFail();
 
-            PLG1Err("SMExecute fail, instanceid %lu, not increase instanceid", llInstanceID);
+            PLG1Err("SMExecute fail, instanceid %lu, not increase instanceid", poLearnState->llInstanceID);
             if (poCommitCtx)
             {
                 poCommitCtx->SetResult(PaxosTryCommitRet_ExecuteFail, 
-                                         llInstanceID, sValue);
+                                         poLearnState->llInstanceID, poLearnState->sValue);
             }
 
             //m_oProposer.CancelSkipPrepare();
@@ -708,7 +722,7 @@ void Group :: ProcessCommit()
                 PLG1Debug("(unix) CommitTimerID %d", poCommitCtx->GetCommitTimerID());
 
                 poCommitCtx->SetResult(PaxosTryCommitRet_OK,
-                                         llInstanceID, sValue);
+                                         poLearnState->llInstanceID, poLearnState->sValue);
 
                 if (poCommitCtx->GetCommitTimerID() > 0)
                 {
@@ -724,20 +738,21 @@ void Group :: ProcessCommit()
 
         }
         
-        PLG1Head("[Learned] learned instanceid %lu. New paxos starting", llInstanceID);
+        PLG1Head("[Learned] learned instanceid %lu. New paxos starting", poLearnState->llInstanceID);
 
-        m_oCheckpointMgr.SetMaxCommitInstanceID(llInstanceID);
 
-        bool bNeedBroadcast = (m_oConfig.GetMyNodeID() == llFromNodeID);
-        if (!m_oLearner.FinishCommit(llInstanceID, bNeedBroadcast))
+        m_oCheckpointMgr.SetMaxCommitInstanceID(poLearnState->llInstanceID);
+
+        bool bNeedBroadcast = (m_oConfig.GetMyNodeID() == poLearnState->oBallot.m_llNodeID);
+        if (!m_oLearner.FinishCommit(poLearnState->llInstanceID, bNeedBroadcast))
         {
-            PLG1Err("FinishCommit fail, instanceid %lu", llInstanceID);
+            PLG1Err("FinishCommit fail, instanceid %lu", poLearnState->llInstanceID);
             return;
         }
 
         // increase nowinstanceid
-        if (llInstanceID + 1 > m_llNowInstanceID) {
-            m_llNowInstanceID = llInstanceID + 1;
+        if (poLearnState->llInstanceID + 1 > m_llNowInstanceID) {
+            m_llNowInstanceID = poLearnState->llInstanceID + 1;
         }
         PLG1Head("[Learned] NowInstanceID increase to %lu", m_llNowInstanceID);
 
@@ -851,6 +866,9 @@ int Group :: PlayLog(const uint64_t llBeginInstanceID, const uint64_t llEndInsta
             PLG1Err("Execute fail, instanceid %lu", llInstanceID);
             return -1;
         }
+
+        m_poSoftState->UpdateOnPersist(llInstanceID, oState);
+        m_poSoftState->UpdateOnCommit(llInstanceID, oState.acceptedvalue());
     }
 
     return 0;

@@ -36,16 +36,19 @@ public:
   ~SoftState() = default;
 
 public:
-  void Update(const uint64_t llInstanceID, const AcceptorStateData &oState);
+  void UpdateOnPersist(const uint64_t llInstanceID, const AcceptorStateData &oState);
+  void UpdateOnCommit(const uint64_t llInstanceID, const std::string &sValue);
+
+public:
+  void OnMinChosenInstanceIDUpdate(const uint64_t llMinChosenInstanceID);
 
 public:
   BallotNumber GetPromiseBallot(const uint64_t llInstanceID, uint64_t & llEndPromiseInstanceID) const;
-  uint32_t GetContinuousChecksum(const uint64_t llInstanceID);
-
-private:
   void SetPromiseBallot(const uint64_t llInstanceID, const BallotNumber &oBallotNumber);
-  void UpdateContinuousChecksum(const uint64_t llInstanceID, const std::string &sAcceptedValue);
 
+public:
+  uint32_t GetLastChecksum(const uint64_t llInstanceID);
+  //void SetLastChecksum(const uint64_t llInstanceID, const uint32_t iLastChecksum);
 
 private:
   int m_iMyGroupIdx{-1};
@@ -53,9 +56,8 @@ private:
 
   std::map<uint64_t, BallotNumber> m_mapInstanceID2PromiseBallot; // for acceptor OnPrepare
 
-  uint64_t m_llNextContinuousInstanceID{0};
-  std::map<uint64_t, uint32_t> m_mapInstanceID2Checksum;
-  std::map<uint64_t, uint32_t> m_mapInstanceID2ContinuousChecksum;
+  uint32_t m_iLastChecksum{0};
+  std::map<uint64_t, uint32_t> m_mapInstanceID2LastChecksum;
 };
 
 class MultiSoftState {

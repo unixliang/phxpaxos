@@ -38,13 +38,37 @@ SoftState::SoftState(const Options & oOptions, const int iGroupIdx)
   : m_iMyGroupIdx(iGroupIdx), m_iMaxWindowSize(oOptions.iMaxWindowSize) {
 }
 
-void SoftState :: Update(const uint64_t llInstanceID, const AcceptorStateData &oState) {
+void SoftState :: UpdateOnPersist(const uint64_t llInstanceID, const AcceptorStateData &oState) {
   BallotNumber oPromiseBallot(oState.promiseid(), oState.promisenodeid());
   SetPromiseBallot(llInstanceID, oPromiseBallot);
 
-  BallotNumber oAcceptedBallot(oState.acceptedid(), oState.acceptednodeid());
-  if (!oAcceptedBallot.isnull()) {
-    UpdateContinuousChecksum(oState.instanceid(), oState.acceptedvalue());
+  PLG1Debug("(unix) InstanceID %lu LastChecksum %u", llInstanceID, oState.checksum());
+
+  if (oState.checksum()) {
+    m_mapInstanceID2LastChecksum[llInstanceID] = oState.checksum();
+  }
+}
+
+void SoftState :: UpdateOnCommit(const uint64_t llInstanceID, const std::string &sValue) {
+  auto &&it = m_mapInstanceID2LastChecksum.find(llInstanceID);
+  if (m_mapInstanceID2LastChecksum.end() != it) {
+    PLG1Debug("(unix) InstanceID %lu LastChecksum %u update by peer", llInstanceID, m_iLastChecksum);
+    m_iLastChecksum = it->second;
+  } else {
+    PLG1Debug("(unix) InstanceID %lu LastChecksum %u update by local", llInstanceID, m_iLastChecksum);
+    m_mapInstanceID2LastChecksum[llInstanceID] = m_iLastChecksum;
+  }
+
+  uint32_t iChecksum{0};
+  if (m_iLastChecksum || 0 == llInstanceID) {
+    iChecksum = crc32(m_iLastChecksum, (const uint8_t *)sValue.data(), sValue.size(), CRC32SKIP);
+  }
+  m_iLastChecksum = iChecksum;
+}
+
+void SoftState::OnMinChosenInstanceIDUpdate(const uint64_t llMinChosenInstanceID) {
+  while (m_mapInstanceID2LastChecksum.begin() != m_mapInstanceID2LastChecksum.end() && m_mapInstanceID2LastChecksum.begin()->first < llMinChosenInstanceID) {
+    m_mapInstanceID2LastChecksum.erase(m_mapInstanceID2LastChecksum.begin());
   }
 }
 
@@ -86,42 +110,16 @@ BallotNumber SoftState :: GetPromiseBallot(const uint64_t llInstanceID, uint64_t
 }
 
 
-uint32_t SoftState::GetContinuousChecksum(const uint64_t llInstanceID) {
-  while (m_llNextContinuousInstanceID <= llInstanceID) {
-    uint32_t iLastContinuousChecksum{0};
-    if (m_llNextContinuousInstanceID) {
-      iLastContinuousChecksum = m_mapInstanceID2ContinuousChecksum[m_llNextContinuousInstanceID - 1];
-    }
-    auto iCheckSum = m_mapInstanceID2Checksum[m_llNextContinuousInstanceID];
-    m_mapInstanceID2ContinuousChecksum[m_llNextContinuousInstanceID++] = crc32(iLastContinuousChecksum, (const uint8_t *)&iLastContinuousChecksum, sizeof(uint32_t), CRC32SKIP);
+uint32_t SoftState::GetLastChecksum(const uint64_t llInstanceID) {
+  uint32_t iLastChecksum{0};
+  auto &&it = m_mapInstanceID2LastChecksum.find(llInstanceID);
+  if (m_mapInstanceID2LastChecksum.end() != it) {
+    iLastChecksum = it->second;
   }
-  PLG1Debug("(unix) InstanceID %lu ContinueChecksum %u", llInstanceID, m_mapInstanceID2ContinuousChecksum[llInstanceID]);
-  return m_mapInstanceID2ContinuousChecksum[llInstanceID];
+  PLG1Debug("(unix) InstanceID %lu LastChecksum %u", llInstanceID, iLastChecksum);
+  return iLastChecksum;
 }
 
-
-void SoftState::UpdateContinuousChecksum(const uint64_t llInstanceID, const std::string &sAcceptedValue) {
-  iChecksum = crc32(0, (const uint8_t *)sAcceptedvalue.data(), sAcceptedvalue.size(), CRC32SKIP);
-
-  auto &&it = m_mapInstanceID2Checksum.find(llInstanceID);
-  if (m_mapInstanceID2Checksum.end() != it && it->second == iChecksum) {
-    return;
-  }
-
-  m_mapInstanceID2Checksum[llInstanceID] = iChecksum;
-  if (llInstanceID < m_llNextContinuousInstanceID) {
-    m_llNextContinuousInstanceID = llInstanceID;
-  }
-
-  while (m_mapInstanceID2Checksum.size() > m_iMaxWindowSize)
-  {
-    auto llEraseInstanceID = m_mapInstanceID2Checksum.begin()->first;
-
-    m_mapInstanceID2Checksum.erase(llEraseInstanceID);
-    m_mapInstanceID2ContinuousChecksum.erase(llEraseInstanceID);
-  }
-
-}
 
 //////////////////////////////////////////////////////
 
