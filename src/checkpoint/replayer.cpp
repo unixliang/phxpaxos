@@ -91,7 +91,7 @@ void Replayer :: run()
             continue;
         }
         
-        if (llInstanceID >= m_poCheckpointMgr->GetMaxCommitInstanceID()) // TODO: should replay [cp+1, maxcommitinstanceid]?
+        if (llInstanceID >= m_poCheckpointMgr->GetNowInstanceID()) // TODO: should replay [cp+1, maxcommitinstanceid]?
         {
             //PLGImp("now maxchosen instanceid %lu small than excute instanceid %lu, wait", 
                     //m_poCheckpointMgr->GetMaxCommitInstanceID(), llInstanceID);

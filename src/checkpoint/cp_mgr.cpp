@@ -39,7 +39,7 @@ CheckpointMgr :: CheckpointMgr(
     m_oReplayer(poConfig, poSMFac, poLogStorage, this),
     m_oCleaner(poConfig, poSMFac, poLogStorage, this),
     m_llMinChosenInstanceID(0),
-    m_llMaxCommitInstanceID(0),
+    m_llNowInstanceID(0),
     m_bInAskforCheckpointMode(false),
     m_bUseCheckpointReplayer(bUseCheckpointReplayer)
 {
@@ -175,9 +175,9 @@ void CheckpointMgr :: SetMinChosenInstanceIDCache(const uint64_t llMinChosenInst
     m_llMinChosenInstanceID = llMinChosenInstanceID;
 }
 
-void CheckpointMgr :: SetMaxCommitInstanceID(const uint64_t llMaxCommitInstanceID)
+void CheckpointMgr :: SetNowInstanceID(const uint64_t llNowInstanceID)
 {
-    m_llMaxCommitInstanceID = llMaxCommitInstanceID;
+    m_llNowInstanceID = llNowInstanceID;
 }
 
 void CheckpointMgr::SetMinChosenInstanceIDUpdateCallbackFunc(MinChosenInstanceIDUpdateCallbackFunc fMinChosenInstanceIDUpdateCallbackFunc) {
@@ -185,9 +185,9 @@ void CheckpointMgr::SetMinChosenInstanceIDUpdateCallbackFunc(MinChosenInstanceID
 }
 
 
-const uint64_t CheckpointMgr :: GetMaxCommitInstanceID() const
+const uint64_t CheckpointMgr :: GetNowInstanceID() const
 {
-    return m_llMaxCommitInstanceID;
+    return m_llNowInstanceID;
 }
 
 }

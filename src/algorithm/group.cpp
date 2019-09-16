@@ -175,8 +175,11 @@ void Group :: Init()
     AddStateMachine(m_oConfig.GetSystemVSM());
     AddStateMachine(m_oConfig.GetMasterSM());
     
+    // load minchoseninstanceid
+    uint64_t llMinChosenInstanceID = m_oCheckpointMgr.GetMinChosenInstanceID();
+
     //load cp instanceid
-    uint64_t llCPInstanceID = m_oCheckpointMgr.GetCheckpointInstanceID() + 1;
+    uint64_t llCPInstanceID = m_oCheckpointMgr.GetCheckpointInstanceID();
 
     //load max instanceid
     uint64_t llMaxInstanceID{0};
@@ -187,7 +190,7 @@ void Group :: Init()
         return;
     }
 
-    PLG1Debug("(unix) CPInstanceID %lu MaxInstanceID %lu", llCPInstanceID, llMaxInstanceID);
+    PLG1Debug("(unix) MinChosenInstanceID %lu CPInstanceID %lu MaxInstanceID %lu", llMinChosenInstanceID, llCPInstanceID, llMaxInstanceID);
 
     if (m_iInitRet == 1)
     {
@@ -196,34 +199,45 @@ void Group :: Init()
         llMaxInstanceID = 0;
     }
 
+    // init nowinstanceid
+    {
+      m_llNowInstanceID = 0;
+      if (llMaxInstanceID >= 100) {
+        m_llNowInstanceID = llMaxInstanceID - 100;
+      }
+      PLG1Debug("(unix) MaxInstanceID %lu NowInstanceID %lu", llMaxInstanceID, m_llNowInstanceID);
+    }
+
+    // check cp
+    {
+      m_iInitRet = ProtectionLogic_IsCheckpointInstanceIDCorrect(llCPInstanceID, llMaxInstanceID);
+      if (m_iInitRet != 0)
+      {
+        return;
+      }
+    }
+
+    // rebuild softstate
+    {
+      RebuildSoftState(llMinChosenInstanceID, llMaxInstanceID);
+    }
+
+
     //playlog
     {
-        m_llNowInstanceID = llCPInstanceID;
-        if (m_llNowInstanceID < llMaxInstanceID)
+        uint64_t llBeginInstanceID = llCPInstanceID + 1;
+        uint64_t llEndInstanceID = m_llNowInstanceID;
+
+        // play [llBeginInstanceID, llEndInstanceID)
+        if (llBeginInstanceID < llEndInstanceID)
         {
-            m_iInitRet = PlayLog(m_llNowInstanceID, llMaxInstanceID);
+            m_iInitRet = PlayLog(llBeginInstanceID, llEndInstanceID);
             if (m_iInitRet != 0)
             {
                 return;
             }
 
             PLG1Imp("PlayLog OK, begin instanceid %lu end instanceid %lu", m_llNowInstanceID, llMaxInstanceID);
-
-            m_llNowInstanceID = llMaxInstanceID;
-        }
-        else
-        {
-            if (m_llNowInstanceID > llMaxInstanceID)
-            {
-                m_iInitRet = ProtectionLogic_IsCheckpointInstanceIDCorrect(m_llNowInstanceID, llMaxInstanceID);
-                if (m_iInitRet != 0)
-                {
-                    return;
-                }
-                //m_oAcceptor.InitForNewPaxosInstance();
-            }
-
-            //m_oAcceptor.SetInstanceID(m_llNowInstanceID);
         }
 
         PLG1Imp("NowInstanceID %lu", m_llNowInstanceID);
@@ -231,7 +245,7 @@ void Group :: Init()
         m_oLearner.SetInstanceID(m_llNowInstanceID);
         //m_oProposer.SetInstanceID(m_llNowInstanceID);
 
-        m_oCheckpointMgr.SetMaxCommitInstanceID(m_llNowInstanceID);
+        m_oCheckpointMgr.SetNowInstanceID(m_llNowInstanceID);
 
         m_iInitRet = InitLastCheckSum();
         if (m_iInitRet != 0)
@@ -680,7 +694,7 @@ void Group :: ProcessCommit()
         auto poCommitCtx = poInstance->GetCommitCtx();
         if (poCommitCtx)
         {
-            PLG1Debug("(unix) CommitCtx exist");
+            PLG1Debug("(unix) CommitCtx exist. val %s", poLearnState->sValue.c_str()); // TODO(unix): remove value
 
             bool bIsMyCommit = poCommitCtx->IsMyCommit(poLearnState->llInstanceID, poLearnState->sValue, poSMCtx);
 
@@ -741,7 +755,7 @@ void Group :: ProcessCommit()
         PLG1Head("[Learned] learned instanceid %lu. New paxos starting", poLearnState->llInstanceID);
 
 
-        m_oCheckpointMgr.SetMaxCommitInstanceID(poLearnState->llInstanceID);
+
 
         bool bNeedBroadcast = (m_oConfig.GetMyNodeID() == poLearnState->oBallot.m_llNodeID);
         if (!m_oLearner.FinishCommit(poLearnState->llInstanceID, bNeedBroadcast))
@@ -753,6 +767,7 @@ void Group :: ProcessCommit()
         // increase nowinstanceid
         if (poLearnState->llInstanceID + 1 > m_llNowInstanceID) {
             m_llNowInstanceID = poLearnState->llInstanceID + 1;
+            m_oCheckpointMgr.SetNowInstanceID(m_llNowInstanceID);
         }
         PLG1Head("[Learned] NowInstanceID increase to %lu", m_llNowInstanceID);
 
@@ -790,7 +805,7 @@ int Group :: GetMaxInstanceIDFromLog(uint64_t & llMaxInstanceID)
 
 int Group :: ProtectionLogic_IsCheckpointInstanceIDCorrect(const uint64_t llCPInstanceID, const uint64_t llLogMaxInstanceID) 
 {
-    if (llCPInstanceID <= llLogMaxInstanceID + 1)
+    if (-1 == llCPInstanceID || llCPInstanceID <= llLogMaxInstanceID)
     {
         return 0;
     }
@@ -813,9 +828,9 @@ int Group :: ProtectionLogic_IsCheckpointInstanceIDCorrect(const uint64_t llCPIn
         //if minchosen isntanceid > checkpoint.instanceid.
         //That probably because the automatic pull checkpoint did not complete successfully.
         uint64_t llMinChosenInstanceID = m_oCheckpointMgr.GetMinChosenInstanceID();
-        if (m_oCheckpointMgr.GetMinChosenInstanceID() != llCPInstanceID)
+        if (m_oCheckpointMgr.GetMinChosenInstanceID() != llCPInstanceID + 1)
         {
-            int ret = m_oCheckpointMgr.SetMinChosenInstanceID(llCPInstanceID);
+            int ret = m_oCheckpointMgr.SetMinChosenInstanceID(llCPInstanceID + 1);
             if (ret != 0)
             {
                 PLG1Err("SetMinChosenInstanceID fail, now minchosen %lu max instanceid %lu checkpoint instanceid %lu",
@@ -867,11 +882,26 @@ int Group :: PlayLog(const uint64_t llBeginInstanceID, const uint64_t llEndInsta
             return -1;
         }
 
-        m_poSoftState->UpdateOnPersist(llInstanceID, oState);
         m_poSoftState->UpdateOnCommit(llInstanceID, oState.acceptedvalue());
     }
 
     return 0;
+}
+
+int Group::RebuildSoftState(const uint64_t llMinChosenInstanceID, const uint64_t llMaxInstanceID) {
+  PLG1Debug("(unix) MinChosenInstanceID %lu MaxInstanceID %lu", llMinChosenInstanceID, llMaxInstanceID);
+
+  int ret;
+  for (uint64_t llInstanceID = llMinChosenInstanceID; llInstanceID <= llMaxInstanceID; ++llInstanceID) {
+    AcceptorStateData oState;
+    ret = m_oPaxosLog.ReadState(m_iMyGroupIdx, llInstanceID, oState);
+    if (ret != 0)
+    {
+      continue;
+    }
+    m_poSoftState->UpdateOnPersist(llInstanceID, oState);
+  }
+  return 0;
 }
 
 

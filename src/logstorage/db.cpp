@@ -192,47 +192,61 @@ const std::string Database :: GetDBPath()
     return m_sDBPath;
 }
 
-int Database :: GetMaxInstanceIDFileID(std::string & sFileID, uint64_t & llInstanceID)
+int Database :: RebuildOneIndex(const uint64_t llInstanceID, const std::string & sFileID)
 {
-    uint64_t llMaxInstanceID = 0;
-    int ret = GetMaxInstanceID(llMaxInstanceID);
+    bool need_rebuild{false};
+    std::string sOldFileID;
+
+    // get old fileid
+    int ret = GetFromLevelDB(llInstanceID, sOldFileID);
     if (ret != 0 && ret != 1)
     {
+        PLG1Err("fail, ret %d", ret);
         return ret;
     }
 
-    if (ret == 1)
-    {
-        sFileID = "";
-        return 0;
+    if (1 == ret) {
+      need_rebuild = true;
+    } else {
+      if (sFileID > sOldFileID) {
+        need_rebuild = true;
+      }
     }
 
-    string sKey = GenKey(llMaxInstanceID);
-    
-    leveldb::Status oStatus = m_poLevelDB->Get(leveldb::ReadOptions(), sKey, &sFileID);
-    if (!oStatus.ok())
+
+
+
+    PLG1Debug("ret %d InstanceID %lu OldFileID %s OldFileID.size %u FileID %s FileID.size %u (FildID>OldFileID) %d (FildID.compare(OldFileID)) %d need_rebuild %d",
+              ret, llInstanceID, sOldFileID.c_str(), sOldFileID.size(), sFileID.c_str(), sFileID.size(), sFileID > sOldFileID, sFileID.compare(sOldFileID), need_rebuild);
+
     {
-        if (oStatus.IsNotFound())
-        {
-            BP->GetLogStorageBP()->LevelDBGetNotExist();
-            //PLG1Err("LevelDB.Get not found %s", sKey.c_str());
-            return 1;
-        }
-        
-        BP->GetLogStorageBP()->LevelDBGetFail();
-        PLG1Err("LevelDB.Get fail");
-        return -1;
+      int iFileID, iOffset;
+      uint32_t iCheckSum;
+
+      memcpy(&iFileID, (void *)sOldFileID.c_str(), sizeof(int));
+      memcpy(&iOffset, (void *)(sOldFileID.c_str() + sizeof(int)), sizeof(int));
+      memcpy(&iCheckSum, (void *)(sOldFileID.c_str() + sizeof(int) + sizeof(int)), sizeof(uint32_t));
+      PLG1Debug("old fileid %d offset %d checksum %u", iFileID, iOffset, iCheckSum);
+
+      memcpy(&iFileID, (void *)sFileID.c_str(), sizeof(int));
+      memcpy(&iOffset, (void *)(sFileID.c_str() + sizeof(int)), sizeof(int));
+      memcpy(&iCheckSum, (void *)(sFileID.c_str() + sizeof(int) + sizeof(int)), sizeof(uint32_t));
+      PLG1Debug("new fileid %d offset %d checksum %u", iFileID, iOffset, iCheckSum);
     }
 
-    llInstanceID = llMaxInstanceID;
+    if (!need_rebuild) {
+      return 0;
+    }
 
-    return 0;
+    // write new fileid
+    ret = PutToLevelDB(false, llInstanceID, sFileID);
+
+    return ret;
 }
 
 
-int Database :: GetMinChosenInstanceIDFileID(std::string & sFileID, uint64_t & llInstanceID)
+int Database :: GetPossiblyMinChosenInstanceIDFileIDOnRebuildIndex(std::string & sFileID, uint64_t & llMinInstanceID)
 {
-    uint64_t llMinChosenInstanceID = 0;
     static uint64_t llMinKey = MINCHOSEN_KEY;
     std::string sValue;
     int ret = GetFromLevelDB(llMinKey, sValue);
@@ -242,91 +256,55 @@ int Database :: GetMinChosenInstanceIDFileID(std::string & sFileID, uint64_t & l
         return ret;
     }
 
-    if (ret == 0)
+    if (ret == 1)
     {
-      if (sValue.size() != sizeof(uint64_t))
-      {
+        llMinInstanceID = 0;
+        sFileID = "";
+        PLG1Err("no min chosen instanceid");
+        return 0;
+    }
+
+    if (sValue.size() != sizeof(uint64_t))
+    {
         PLG1Err("fail, mininstanceid size wrong");
         return -2;
-      }
-      memcpy(&llMinChosenInstanceID, sValue.data(), sizeof(uint64_t));
+    }
+
+    memcpy(&llMinInstanceID, sValue.data(), sizeof(uint64_t));
+
+    PLG1Imp("ok, min chosen instanceid %lu", llMinInstanceID);
+
+    std::string sValue1;
+    ret = GetFromLevelDB(llMinInstanceID, sValue1);
+    if (ret != 0 && ret != 1)
+    {
+        PLG1Err("fail, ret %d", ret);
+        return ret;
     }
 
     if (ret == 1)
     {
-        sFileID = "";
-        return 0;
+        PLG1Err("no min chosen instanceid's fileid");
+        return 1;
     }
 
-    string sKey = GenKey(llMinChosenInstanceID);
-    
-    leveldb::Status oStatus = m_poLevelDB->Get(leveldb::ReadOptions(), sKey, &sFileID);
-    if (!oStatus.ok())
-    {
-        if (oStatus.IsNotFound())
-        {
-            BP->GetLogStorageBP()->LevelDBGetNotExist();
-            //PLG1Err("LevelDB.Get not found %s", sKey.c_str());
-            return 1;
-        }
-        
-        BP->GetLogStorageBP()->LevelDBGetFail();
-        PLG1Err("LevelDB.Get fail");
-        return -1;
-    }
-
-    llInstanceID = llMinChosenInstanceID;
+    sFileID = sValue1;
 
     return 0;
 }
 
-int Database :: RebuildOneIndex(const uint64_t llInstanceID, const std::string & sFileID)
-{
-    string sKey = GenKey(llInstanceID);
+void Database::UpdateMaxInstanceIDCache(const uint64_t llInstanceID) {
+  if (MINCHOSEN_KEY == llInstanceID ||
+      SYSTEMVARIABLES_KEY == llInstanceID ||
+      MASTERVARIABLES_KEY == llInstanceID) {
+    return;
+  }
 
-    bool need_rebuild{false};
-    std::string sOldFildID;
-
-    // get old fileid
-    leveldb::Status oStatus = m_poLevelDB->Get(leveldb::ReadOptions(), sKey, &sOldFildID);
-    if (!oStatus.ok())
-    {
-        if (oStatus.IsNotFound())
-        {
-            BP->GetLogStorageBP()->LevelDBGetNotExist();
-            //PLG1Err("LevelDB.Get not found %s", sKey.c_str());
-            need_rebuild = true;
-        } else {
-          BP->GetLogStorageBP()->LevelDBGetFail();
-          PLG1Err("LevelDB.Get fail");
-          return -1;
-        }
-    } else {
-      if (sFileID > sOldFildID) {
-        need_rebuild = true;
-      }
-    }
-
-    PLG1Debug("InstanceID %lu OldFileID %s FileID %s need_rebuild %d", llInstanceID, sOldFildID.c_str(), sFileID.c_str(), need_rebuild);
-
-    if (!need_rebuild) {
-      return 0;
-    }
-
-    // write new fileid
-    leveldb::WriteOptions oLevelDBWriteOptions;
-    oLevelDBWriteOptions.sync = false;
-
-    oStatus = m_poLevelDB->Put(oLevelDBWriteOptions, sKey, sFileID);
-    if (!oStatus.ok())
-    {
-        BP->GetLogStorageBP()->LevelDBPutFail();
-        PLG1Err("LevelDB.Put fail, instanceid %lu valuelen %zu", llInstanceID, sFileID.size());
-        return -1;
-    }
-
-    return 0;
+  if (-1 == m_llMaxInstanceID || llInstanceID > m_llMaxInstanceID) {
+    m_llMaxInstanceID = llInstanceID;
+  }
 }
+
 
 void Database::SetSoftState(SoftState *poSoftState) {
   m_poSoftState = poSoftState;
@@ -356,6 +334,9 @@ int Database :: GetFromLevelDB(const uint64_t llInstanceID, std::string & sValue
         PLG1Err("LevelDB.Get fail, instanceid %lu", llInstanceID);
         return -1;
     }
+
+    PLG1Debug("(unix) llInstanceID %lu", llInstanceID);
+    UpdateMaxInstanceIDCache(llInstanceID);
 
     return 0;
 }
@@ -436,6 +417,9 @@ int Database :: PutToLevelDB(const bool bSync, const uint64_t llInstanceID, cons
 
     BP->GetLogStorageBP()->LevelDBPutOK(m_oTimeStat.Point());
 
+    PLG1Debug("(unix) llInstanceID %lu", llInstanceID);
+    UpdateMaxInstanceIDCache(llInstanceID);
+
     return 0;
 }
 
@@ -455,7 +439,8 @@ int Database :: Put(const WriteOptions & oWriteOptions, const uint64_t llInstanc
     }
 
     ret = PutToLevelDB(false, llInstanceID, sFileID);
-    
+
+
     return ret;
 }
 
@@ -508,6 +493,24 @@ int Database :: Del(const WriteOptions & oWriteOptions, const uint64_t llInstanc
 
 int Database :: GetMaxInstanceID(uint64_t & llInstanceID)
 {
+    if (!m_bHasInit)
+    {
+        PLG1Err("no init yet");
+        return -1;
+    }
+
+    PLG1Debug("(unix) MaxInstanceID %lu", m_llMaxInstanceID);
+
+    if (-1 == m_llMaxInstanceID) {
+      return 1;
+    }
+
+    llInstanceID = m_llMaxInstanceID;
+    return 0;
+}
+/*
+int Database :: GetMaxInstanceID(uint64_t & llInstanceID)
+{
     llInstanceID = MINCHOSEN_KEY;
 
     leveldb::Iterator * it = m_poLevelDB->NewIterator(leveldb::ReadOptions());
@@ -533,7 +536,7 @@ int Database :: GetMaxInstanceID(uint64_t & llInstanceID)
     delete it;
     return 1;
 }
-
+*/
 std::string Database :: GenKey(const uint64_t llInstanceID)
 {
     string sKey;
@@ -555,6 +558,10 @@ int Database :: GetMinChosenInstanceID(uint64_t & llMinInstanceID)
     {
         PLG1Err("no init yet");
         return -1;
+    }
+
+    if (-1 != m_llMinChosenInstanceID) {
+      return m_llMinChosenInstanceID;
     }
 
     static uint64_t llMinKey = MINCHOSEN_KEY;
@@ -598,6 +605,13 @@ int Database :: GetMinChosenInstanceID(uint64_t & llMinInstanceID)
     return 0;
 }
 
+
+
+
+
+
+
+
 int Database :: SetMinChosenInstanceID(const WriteOptions & oWriteOptions, const uint64_t llMinInstanceID)
 {
     if (!m_bHasInit)
@@ -617,6 +631,8 @@ int Database :: SetMinChosenInstanceID(const WriteOptions & oWriteOptions, const
     }
 
     PLG1Imp("ok, min chosen instanceid %lu", llMinInstanceID);
+
+    m_llMinChosenInstanceID = llMinInstanceID;
 
     return 0;
 }

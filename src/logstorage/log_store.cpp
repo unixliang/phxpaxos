@@ -522,7 +522,7 @@ int LogStore :: RebuildIndex(Database * poDatabase, int & iNowFileWriteOffset)
     string sLastFileID;
 
     uint64_t llNowInstanceID = 0;
-    int ret = poDatabase->GetMinChosenInstanceIDFileID(sLastFileID, llNowInstanceID);
+    int ret = poDatabase->GetPossiblyMinChosenInstanceIDFileIDOnRebuildIndex(sLastFileID, llNowInstanceID);
     if (ret != 0)
     {
         return ret;
@@ -555,15 +555,15 @@ int LogStore :: RebuildIndex(Database * poDatabase, int & iNowFileWriteOffset)
         }
         else if (ret == 1)
         {
-            if (iNowFileID != 0 && iNowFileID != m_iFileID + 1)
+            if (iNowFileID != 0 && iNowFileID == m_iFileID + 1)
             {
-                PLG1Err("meta file wrong, nowfileid %d meta.nowfileid %d", iNowFileID, m_iFileID);
-                return -1;
+              ret = 0;
+              PLG1Imp("END rebuild ok, nowfileid %d", iNowFileID);
+              break;
             }
-
-            ret = 0;
-            PLG1Imp("END rebuild ok, nowfileid %d", iNowFileID);
-            break;
+            PLG1Head("(unix) NowFileID %d not exist", iNowFileID);
+        } else if (ret == 0) {
+            PLG1Head("(unix) NowFileID %d exist", iNowFileID);
         }
 
         iOffset = 0;

@@ -87,11 +87,11 @@ public:
     int GetMasterVariables(std::string & sBuffer);
     
 public:
-    int GetMaxInstanceIDFileID(std::string & sFileID, uint64_t & llInstanceID);
-
-    int GetMinChosenInstanceIDFileID(std::string & sFileID, uint64_t & llInstanceID);
-
     int RebuildOneIndex(const uint64_t llInstanceID, const std::string & sFileID);
+
+    int GetPossiblyMinChosenInstanceIDFileIDOnRebuildIndex(std::string & sFileID, uint64_t & llMinInstanceID);
+
+    void UpdateMaxInstanceIDCache(const uint64_t llInstanceID);
 
 public:
   void SetSoftState(SoftState *poSoftState);
@@ -124,6 +124,10 @@ private:
 
 private:
     TimeStat m_oTimeStat;
+
+private:
+  uint64_t m_llMinChosenInstanceID{-1};
+  uint64_t m_llMaxInstanceID{-1};
 
 private:
   SoftState *m_poSoftState{nullptr};

@@ -106,12 +106,12 @@ void Cleaner :: run()
         }
 
         uint64_t llInstanceID = m_poCheckpointMgr->GetMinChosenInstanceID();
-        uint64_t llCPInstanceID = m_poSMFac->GetCheckpointInstanceID(m_poConfig->GetMyGroupIdx()) + 1;
-        uint64_t llMaxCommitInstanceID = m_poCheckpointMgr->GetMaxCommitInstanceID();
+        uint64_t llCPInstanceID = m_poSMFac->GetCheckpointInstanceID(m_poConfig->GetMyGroupIdx());
+        uint64_t llNowInstanceID = m_poCheckpointMgr->GetNowInstanceID();
 
         int iDeleteCount = 0;
-        while ((llInstanceID + m_llHoldCount + m_poConfig->GetMaxWindowSize() < llCPInstanceID)
-                && (llInstanceID + m_llHoldCount + m_poConfig->GetMaxWindowSize() < llMaxCommitInstanceID))
+        while ((-1 != llCPInstanceID && llInstanceID + m_llHoldCount + m_poConfig->GetMaxWindowSize() < llCPInstanceID)
+                && (llInstanceID + m_llHoldCount + m_poConfig->GetMaxWindowSize() < llNowInstanceID))
         {
             bool bDeleteRet = DeleteOne(llInstanceID);
             if (bDeleteRet)
@@ -132,15 +132,15 @@ void Cleaner :: run()
             }
         }
 
-        if (llCPInstanceID == 0)
+        if (-1 == llCPInstanceID)
         {
-            PLGStatus("sleep a while, max deleted instanceid %lu checkpoint instanceid (no checkpoint) max commit instanceid %lu",
-                    llInstanceID, m_poCheckpointMgr->GetMaxCommitInstanceID());
+            PLGStatus("sleep a while, max deleted instanceid %lu checkpoint instanceid (no checkpoint) nowinstanceid %lu",
+                    llInstanceID, llNowInstanceID);
         }
         else
         {
-            PLGStatus("sleep a while, max deleted instanceid %lu checkpoint instanceid %lu max commit instanceid %lu",
-                    llInstanceID, llCPInstanceID, m_poCheckpointMgr->GetMaxCommitInstanceID());
+            PLGStatus("sleep a while, max deleted instanceid %lu checkpoint instanceid %lu nowinstanceid %lu",
+                    llInstanceID, llCPInstanceID, llNowInstanceID);
         }
 
         Time::MsSleep(OtherUtils::FastRand() % 500 + 500);

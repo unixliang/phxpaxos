@@ -131,6 +131,8 @@ private:
 
     int PlayLog(const uint64_t llBeginInstanceID, const uint64_t llEndInstanceID);
 
+    int RebuildSoftState(const uint64_t llMinChosenInstanceID, const uint64_t llMaxInstanceID);
+
 private:
     Options m_oOptions;
     LogStorage * m_poLogStorage;

@@ -68,9 +68,9 @@ public:
 
     const uint64_t GetCheckpointInstanceID() const;
 
-    const uint64_t GetMaxCommitInstanceID() const;
+    const uint64_t GetNowInstanceID() const;
 
-    void SetMaxCommitInstanceID(const uint64_t llMaxCommitInstanceID);
+    void SetNowInstanceID(const uint64_t llNowInstanceID);
 
 public:
     void SetMinChosenInstanceIDUpdateCallbackFunc(MinChosenInstanceIDUpdateCallbackFunc fMinChosenInstanceIDUpdateCallbackFunc);
@@ -84,7 +84,7 @@ private:
     Cleaner m_oCleaner;
 
     uint64_t m_llMinChosenInstanceID;
-    uint64_t m_llMaxCommitInstanceID;
+    uint64_t m_llNowInstanceID;
 
 private:
     bool m_bInAskforCheckpointMode;
