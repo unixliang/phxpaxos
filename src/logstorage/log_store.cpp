@@ -486,8 +486,12 @@ int LogStore :: Del(const std::string & sFileID, const uint64_t llInstanceID)
     return 0;
 }
 
-void LogStore :: GenFileID(const int iFileID, const int iOffset, const uint32_t iCheckSum, std::string & sFileID)
+void LogStore :: GenFileID(int iFileID, int iOffset, uint32_t iCheckSum, std::string & sFileID)
 {
+    iFileID = htonl(iFileID);
+    iOffset = htonl(iOffset);
+    iCheckSum = htonl(iCheckSum);
+
     char sTmp[sizeof(int) + sizeof(int) + sizeof(uint32_t)] = {0};
     memcpy(sTmp, (char *)&iFileID, sizeof(int));
     memcpy(sTmp + sizeof(int), (char *)&iOffset, sizeof(int));
@@ -501,6 +505,10 @@ void LogStore :: ParseFileID(const std::string & sFileID, int & iFileID, int & i
     memcpy(&iFileID, (void *)sFileID.c_str(), sizeof(int));
     memcpy(&iOffset, (void *)(sFileID.c_str() + sizeof(int)), sizeof(int));
     memcpy(&iCheckSum, (void *)(sFileID.c_str() + sizeof(int) + sizeof(int)), sizeof(uint32_t));
+
+    iFileID = ntohl(iFileID);
+    iOffset = ntohl(iOffset);
+    iCheckSum = ntohl(iCheckSum);
 
     PLG1Debug("fileid %d offset %d checksum %u", iFileID, iOffset, iCheckSum);
 }

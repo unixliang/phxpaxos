@@ -59,6 +59,11 @@ void SoftState :: UpdateOnCommit(const uint64_t llInstanceID, const std::string 
     m_mapInstanceID2LastChecksum[llInstanceID] = m_iLastChecksum;
   }
 
+  {
+    uint32_t iValueChecksum = crc32(0, (const uint8_t *)sValue.data(), sValue.size(), CRC32SKIP);
+    PLG1Debug("(unix) InstanceID %lu iValueChecksum %u valuesize %u", llInstanceID, iValueChecksum, sValue.size());
+  }
+
   uint32_t iChecksum{0};
   if (m_iLastChecksum || 0 == llInstanceID) {
     iChecksum = crc32(m_iLastChecksum, (const uint8_t *)sValue.data(), sValue.size(), CRC32SKIP);

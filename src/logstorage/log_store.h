@@ -74,7 +74,7 @@ public:
             Database * poDatabase, int & iNowFileWriteOffset, uint64_t & llNowInstanceID);
 
 private:
-    void GenFileID(const int iFileID, const int iOffset, const uint32_t iCheckSum, std::string & sFileID);
+    void GenFileID(int iFileID, int iOffset, uint32_t iCheckSum, std::string & sFileID);
 
     void ParseFileID(const std::string & sFileID, int & iFileID, int & iOffset, uint32_t & iCheckSum);
 

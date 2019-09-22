@@ -222,6 +222,24 @@ void Group :: Init()
       RebuildSoftState(llMinChosenInstanceID, llMaxInstanceID);
     }
 
+    // rebuild instance
+    {
+      uint64_t llBeginInstanceID = m_llNowInstanceID;
+      uint64_t llEndInstanceID = llMaxInstanceID;
+
+        // play [llBeginInstanceID, llEndInstanceID)
+        if (llBeginInstanceID <= llEndInstanceID)
+        {
+            m_iInitRet = RebuildInstance(llBeginInstanceID, llEndInstanceID);
+            if (m_iInitRet != 0)
+            {
+                return;
+            }
+
+            PLG1Imp("RebuildInstace OK, begin instanceid %lu end instanceid %lu", m_llNowInstanceID, llMaxInstanceID);
+        }
+    }
+
 
     //playlog
     {
@@ -257,6 +275,7 @@ void Group :: Init()
 
         PLG1Imp("OK");
     }
+
 
 
     m_llNowIdleInstanceID = m_llNowInstanceID;
@@ -854,6 +873,54 @@ int Group :: ProtectionLogic_IsCheckpointInstanceIDCorrect(const uint64_t llCPIn
                 llCPInstanceID, llLogMaxInstanceID);
         return -2;
     }
+}
+
+int Group :: RebuildInstance(const uint64_t llBeginInstanceID, const uint64_t llEndInstanceID)
+{
+  if (llBeginInstanceID < m_oCheckpointMgr.GetMinChosenInstanceID())
+  {
+    PLG1Err("now instanceid %lu small than min chosen instanceid %lu", 
+            llBeginInstanceID, m_oCheckpointMgr.GetMinChosenInstanceID());
+    return -2;
+  }
+
+  for (uint64_t llInstanceID = llBeginInstanceID; llInstanceID <= llEndInstanceID; llInstanceID++)
+  {
+    AcceptorStateData oState;
+    int ret = m_oPaxosLog.ReadState(m_iMyGroupIdx, llInstanceID, oState);
+    if (ret != 0)
+    {
+      PLG1Err("log read fail, instanceid %lu ret %d", llInstanceID, ret);
+      continue;
+    }
+
+    auto poInstance = GetInstance(llInstanceID);
+    if (nullptr == poInstance) {
+      PLG1Err("GetInstance fail, instanceid %lu", llInstanceID);
+      return -2;
+    }
+
+    auto poAcceptor = poInstance->GetAcceptor();
+    if (nullptr == poAcceptor) {
+      PLG1Err("GetAcceptor fail, instanceid %lu", llInstanceID);
+      return -2;
+    }
+
+    auto poAcceptorState = poAcceptor->GetAcceptorState();
+    if (nullptr == poAcceptorState) {
+      PLG1Err("GetAcceptorState, instanceid %lu", llInstanceID);
+      return -2;
+    }
+
+    BallotNumber oAcceptedBallot(oState.acceptedid(), oState.acceptednodeid());
+    poAcceptorState->SetAcceptedBallot(oAcceptedBallot);
+    poAcceptorState->SetAcceptedValue(oState.acceptedvalue());
+
+    PLG1Debug("(unix) rebuild Instance ok. InstanceID %lu value %s", llInstanceID, oState.acceptedvalue().c_str() + sizeof(int));
+  }
+
+
+  return 0;
 }
 
 int Group :: PlayLog(const uint64_t llBeginInstanceID, const uint64_t llEndInstanceID)

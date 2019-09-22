@@ -129,6 +129,8 @@ private:
 
     int ProtectionLogic_IsCheckpointInstanceIDCorrect(const uint64_t llCPInstanceID, const uint64_t llLogMaxInstanceID);
 
+    int RebuildInstance(const uint64_t llBeginInstanceID, const uint64_t llEndInstanceID);
+
     int PlayLog(const uint64_t llBeginInstanceID, const uint64_t llEndInstanceID);
 
     int RebuildSoftState(const uint64_t llMinChosenInstanceID, const uint64_t llMaxInstanceID);

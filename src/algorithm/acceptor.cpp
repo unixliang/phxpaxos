@@ -159,11 +159,13 @@ int Acceptor :: OnPrepare(const PaxosMsg & oPaxosMsg)
     if (oBallot >= oPromiseBallot)
     {
         PLGDebug("[Promise] State.PromiseID %lu State.PromiseNodeID %lu "
-                "State.PreAcceptedID %lu State.PreAcceptedNodeID %lu",
+                "State.PreAcceptedID %lu State.PreAcceptedNodeID %lu ",
+                "PreAcceptedValue %s",
                 oPromiseBallot.m_llProposalID, 
                 oPromiseBallot.m_llNodeID,
                 m_oAcceptorState.GetAcceptedBallot().m_llProposalID,
-                m_oAcceptorState.GetAcceptedBallot().m_llNodeID);
+                 m_oAcceptorState.GetAcceptedBallot().m_llNodeID,
+                 m_oAcceptorState.GetAcceptedValue().c_str() + sizeof(int));
 
         oReplyPaxosMsg.set_preacceptid(m_oAcceptorState.GetAcceptedBallot().m_llProposalID);
         oReplyPaxosMsg.set_preacceptnodeid(m_oAcceptorState.GetAcceptedBallot().m_llNodeID);
@@ -230,11 +232,13 @@ void Acceptor :: OnAccept(const PaxosMsg & oPaxosMsg)
     if (oBallot >= oPromiseBallot)
     {
         PLGDebug("[Promise] State.PromiseID %lu State.PromiseNodeID %lu "
-                "State.PreAcceptedID %lu State.PreAcceptedNodeID %lu",
+                "State.PreAcceptedID %lu State.PreAcceptedNodeID %lu ",
+                "PreAcceptedValue %s value %s",
                 oPromiseBallot.m_llProposalID, 
                 oPromiseBallot.m_llNodeID,
                 m_oAcceptorState.GetAcceptedBallot().m_llProposalID,
-                m_oAcceptorState.GetAcceptedBallot().m_llNodeID);
+                 m_oAcceptorState.GetAcceptedBallot().m_llNodeID,
+                 m_oAcceptorState.GetAcceptedValue().c_str() + sizeof(int), oPaxosMsg.value().c_str() + sizeof(int));
 
         m_oAcceptorState.SetAcceptedBallot(oBallot);
         m_oAcceptorState.SetAcceptedValue(oPaxosMsg.value());

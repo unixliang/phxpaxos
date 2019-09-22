@@ -348,8 +348,8 @@ void Proposer :: OnPrepareReply(const PaxosMsg & oPaxosMsg)
     if (oPaxosMsg.rejectbypromiseid() == 0)
     {
         BallotNumber oBallot(oPaxosMsg.preacceptid(), oPaxosMsg.preacceptnodeid());
-        PLGDebug("[Promise] PreAcceptedID %lu PreAcceptedNodeID %lu ValueSize %zu", 
-                oPaxosMsg.preacceptid(), oPaxosMsg.preacceptnodeid(), oPaxosMsg.value().size());
+        PLGDebug("[Promise] PreAcceptedID %lu PreAcceptedNodeID %lu ValueSize %zu value %s", 
+                 oPaxosMsg.preacceptid(), oPaxosMsg.preacceptnodeid(), oPaxosMsg.value().size(), oPaxosMsg.value().c_str() + sizeof(int));
         m_oMsgCounter.AddPromiseOrAccept(oPaxosMsg.nodeid());
         m_oProposerState.AddPreAcceptValue(oBallot, oPaxosMsg.value());
     }
