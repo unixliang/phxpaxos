@@ -39,17 +39,23 @@ SoftState::SoftState(const Options & oOptions, const int iGroupIdx)
 }
 
 void SoftState :: UpdateOnPersist(const uint64_t llInstanceID, const AcceptorStateData &oState) {
+  // promise ballot
   BallotNumber oPromiseBallot(oState.promiseid(), oState.promisenodeid());
   SetPromiseBallot(llInstanceID, oPromiseBallot);
 
   PLG1Debug("(unix) InstanceID %lu LastChecksum %u", llInstanceID, oState.checksum());
 
+  // md5
   if (oState.checksum()) {
     m_mapInstanceID2LastChecksum[llInstanceID] = oState.checksum();
   }
+
+  // HighestOtherProposalID
+  SetOtherProposalID(oState.promiseid());
 }
 
 void SoftState :: UpdateOnCommit(const uint64_t llInstanceID, const std::string &sValue) {
+  // md5
   auto &&it = m_mapInstanceID2LastChecksum.find(llInstanceID);
   if (m_mapInstanceID2LastChecksum.end() != it) {
     PLG1Debug("(unix) InstanceID %lu LastChecksum %u update by peer", llInstanceID, m_iLastChecksum);
@@ -125,6 +131,15 @@ uint32_t SoftState::GetLastChecksum(const uint64_t llInstanceID) {
   return iLastChecksum;
 }
 
+
+void SoftState::SetOtherProposalID(const uint64_t llOtherProposalID) {
+  if (llOtherProposalID > m_llHighestOtherProposalID)
+    m_llHighestOtherProposalID = llOtherProposalID;
+}
+
+uint64_t SoftState::GetHighestOtherProposalID() {
+  return m_llHighestOtherProposalID;
+}
 
 //////////////////////////////////////////////////////
 

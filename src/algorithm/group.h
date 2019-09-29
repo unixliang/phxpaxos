@@ -78,8 +78,6 @@ public:
 
     void NewPrepare();
 
-    void SetOtherProposalID(const uint64_t llOtherProposalID);
-
     void OnReceiveCheckpointMsg(const CheckpointMsg & oCheckpointMsg);
 
     bool ReceiveMsgHeaderCheck(const Header & oHeader, const nodeid_t iFromNodeID);
@@ -153,8 +151,6 @@ private:
     uint32_t m_iLastChecksum{0};
 
     uint64_t m_llProposalID{0};
-    uint64_t m_llHighestOtherProposalID{0};
-
 
     bool m_bStarted{false};
 

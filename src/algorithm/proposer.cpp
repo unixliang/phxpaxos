@@ -89,11 +89,6 @@ void ProposerState :: SetValue(const std::string & sValue)
     m_sValue = sValue;
 }
 
-void ProposerState :: SetOtherProposalID(const uint64_t llOtherProposalID)
-{
-    m_poGroup->SetOtherProposalID(llOtherProposalID);
-}
-
 void ProposerState :: ResetHighestOtherPreAcceptBallot()
 {
     m_oHighestOtherPreAcceptBallot.reset();
@@ -358,7 +353,7 @@ void Proposer :: OnPrepareReply(const PaxosMsg & oPaxosMsg)
         PLGDebug("[Reject] RejectByPromiseID %lu", oPaxosMsg.rejectbypromiseid());
         m_oMsgCounter.AddReject(oPaxosMsg.nodeid());
         m_bWasRejectBySomeone = true;
-        m_oProposerState.SetOtherProposalID(oPaxosMsg.rejectbypromiseid());
+        m_poGroup->GetSoftState()->SetOtherProposalID(oPaxosMsg.rejectbypromiseid());
     }
 
     if (m_oMsgCounter.IsPassedOnThisRound())
@@ -386,7 +381,7 @@ void Proposer :: OnExpiredPrepareReply(const PaxosMsg & oPaxosMsg)
     {
         PLGDebug("[Expired Prepare Reply Reject] RejectByPromiseID %lu", oPaxosMsg.rejectbypromiseid());
         m_bWasRejectBySomeone = true;
-        m_oProposerState.SetOtherProposalID(oPaxosMsg.rejectbypromiseid());
+        m_poGroup->GetSoftState()->SetOtherProposalID(oPaxosMsg.rejectbypromiseid());
     }
 }
 
@@ -454,7 +449,7 @@ void Proposer :: OnAcceptReply(const PaxosMsg & oPaxosMsg)
 
         m_bWasRejectBySomeone = true;
 
-        m_oProposerState.SetOtherProposalID(oPaxosMsg.rejectbypromiseid());
+        m_poGroup->GetSoftState()->SetOtherProposalID(oPaxosMsg.rejectbypromiseid());
     }
 
     if (m_oMsgCounter.IsPassedOnThisRound())
@@ -482,7 +477,7 @@ void Proposer :: OnExpiredAcceptReply(const PaxosMsg & oPaxosMsg)
     {
         PLGDebug("[Expired Accept Reply Reject] RejectByPromiseID %lu", oPaxosMsg.rejectbypromiseid());
         m_bWasRejectBySomeone = true;
-        m_oProposerState.SetOtherProposalID(oPaxosMsg.rejectbypromiseid());
+        m_poGroup->GetSoftState()->SetOtherProposalID(oPaxosMsg.rejectbypromiseid());
     }
 }
 

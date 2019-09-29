@@ -51,8 +51,6 @@ public:
 
     void SetValue(const std::string & sValue);
 
-    void SetOtherProposalID(const uint64_t llOtherProposalID);
-
     void ResetHighestOtherPreAcceptBallot();
 
 public:

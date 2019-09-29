@@ -79,7 +79,7 @@ int Group :: LoadMaxInstanceID(uint64_t & llInstanceID)
         llInstanceID = 0;
         return 0;
     }
-
+/*
     AcceptorStateData oState;
     ret = m_oPaxosLog.ReadState(m_iMyGroupIdx, llInstanceID, oState);
     if (ret != 0)
@@ -88,7 +88,7 @@ int Group :: LoadMaxInstanceID(uint64_t & llInstanceID)
     }
 
     m_llProposalID = oState.promiseid(); // TODO(unix): the max proposalid should be maintained by softstate
-
+*/
 /*
     // m_mapInstanceID2PromiseBallot should be maintained by softstate
     m_mapInstanceID2PromiseBallot.clear();
@@ -360,11 +360,13 @@ uint64_t Group :: GetProposalID() const
 
 void Group :: NewPrepare()
 {
+  uint64_t llHighestOtherProposalID = m_poSoftState->GetHighestOtherProposalID();
+
     PLG1Head("START ProposalID %lu HighestOther %lu MyNodeID %lu",
-            m_llProposalID, m_llHighestOtherProposalID, m_oConfig.GetMyNodeID());
+            m_llProposalID, llHighestOtherProposalID, m_oConfig.GetMyNodeID());
 
     uint64_t llMaxProposalID =
-        m_llProposalID > m_llHighestOtherProposalID ? m_llProposalID : m_llHighestOtherProposalID;
+        m_llProposalID > llHighestOtherProposalID ? m_llProposalID : llHighestOtherProposalID;
 
     m_llProposalID = llMaxProposalID + 1;
 
@@ -496,14 +498,6 @@ int Group :: NewValue(const uint64_t llInstanceID, const std::string & sValue, s
 void Group :: NewIdleInstance()
 {
     ++m_llNowIdleInstanceID;
-}
-
-void Group :: SetOtherProposalID(const uint64_t llOtherProposalID)
-{
-    if (llOtherProposalID > m_llHighestOtherProposalID)
-    {
-        m_llHighestOtherProposalID = llOtherProposalID;
-    }
 }
 
 void Group :: OnReceiveCheckpointMsg(const CheckpointMsg & oCheckpointMsg)

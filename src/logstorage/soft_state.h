@@ -50,6 +50,10 @@ public:
   uint32_t GetLastChecksum(const uint64_t llInstanceID);
   //void SetLastChecksum(const uint64_t llInstanceID, const uint32_t iLastChecksum);
 
+public:
+  void SetOtherProposalID(const uint64_t llOtherProposalID);
+  uint64_t GetHighestOtherProposalID();
+
 private:
   int m_iMyGroupIdx{-1};
   int m_iMaxWindowSize{0};
@@ -58,6 +62,8 @@ private:
 
   uint32_t m_iLastChecksum{0};
   std::map<uint64_t, uint32_t> m_mapInstanceID2LastChecksum;
+
+  uint64_t m_llHighestOtherProposalID{0};
 };
 
 class MultiSoftState {
