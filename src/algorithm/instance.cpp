@@ -67,6 +67,11 @@ int Instance :: Init(uint64_t llInstanceID)
     return 0;
 }
 
+Proposer * Instance :: GetProposer()
+{
+    return &m_oProposer;
+}
+
 Acceptor * Instance :: GetAcceptor()
 {
     return &m_oAcceptor;

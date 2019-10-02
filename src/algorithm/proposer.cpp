@@ -132,6 +132,10 @@ void Proposer :: Init(uint64_t llInstanceID)
     ExitAccept();
 }
 
+ProposerState * Proposer :: GetProposerState() {
+  return &m_oProposerState;
+}
+
 bool Proposer :: IsWorking()
 {
     return m_bIsPreparing || m_bIsAccepting;

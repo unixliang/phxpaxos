@@ -52,6 +52,8 @@ public:
     int Init(uint64_t llNowInstanceID);
 
 public:
+    Proposer * GetProposer();
+
     Acceptor * GetAcceptor();
 
     void SetCommitCtx(std::shared_ptr<CommitCtx> poCommitCtx);

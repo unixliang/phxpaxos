@@ -76,6 +76,8 @@ public:
 
     void Init(uint64_t llInstanceID);
 
+    ProposerState * GetProposerState();
+
     bool NeedPrepare();
 
     int NewValue(const std::string & sValue);

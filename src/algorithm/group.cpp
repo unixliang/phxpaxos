@@ -857,6 +857,24 @@ int Group :: RebuildInstance(const uint64_t llBeginInstanceID, const uint64_t ll
       return -2;
     }
 
+    BallotNumber oAcceptedBallot(oState.acceptedid(), oState.acceptednodeid());
+
+    // proposer
+    auto poProposer = poInstance->GetProposer();
+    if (nullptr == poProposer) {
+      PLG1Err("GetProposer fail, instanceid %lu", llInstanceID);
+      return -2;
+    }
+
+    auto poProposerState = poProposer->GetProposerState();
+    if (nullptr == poProposerState) {
+      PLG1Err("GetProposerState fail, instanceid %lu", llInstanceID);
+      return -2;
+    }
+
+    poProposerState->AddPreAcceptValue(oAcceptedBallot, oState.acceptedvalue());
+
+    // accrptor
     auto poAcceptor = poInstance->GetAcceptor();
     if (nullptr == poAcceptor) {
       PLG1Err("GetAcceptor fail, instanceid %lu", llInstanceID);
@@ -869,7 +887,7 @@ int Group :: RebuildInstance(const uint64_t llBeginInstanceID, const uint64_t ll
       return -2;
     }
 
-    BallotNumber oAcceptedBallot(oState.acceptedid(), oState.acceptednodeid());
+
     poAcceptorState->SetAcceptedBallot(oAcceptedBallot);
     poAcceptorState->SetAcceptedValue(oState.acceptedvalue());
 

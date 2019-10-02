@@ -226,11 +226,17 @@ int Database :: RebuildOneIndex(const uint64_t llInstanceID, const std::string &
       memcpy(&iFileID, (void *)sOldFileID.c_str(), sizeof(int));
       memcpy(&iOffset, (void *)(sOldFileID.c_str() + sizeof(int)), sizeof(int));
       memcpy(&iCheckSum, (void *)(sOldFileID.c_str() + sizeof(int) + sizeof(int)), sizeof(uint32_t));
+      iFileID = ntohl(iFileID);
+      iOffset = ntohl(iOffset);
+      iCheckSum = ntohl(iCheckSum);
       PLG1Debug("old fileid %d offset %d checksum %u", iFileID, iOffset, iCheckSum);
 
       memcpy(&iFileID, (void *)sFileID.c_str(), sizeof(int));
       memcpy(&iOffset, (void *)(sFileID.c_str() + sizeof(int)), sizeof(int));
       memcpy(&iCheckSum, (void *)(sFileID.c_str() + sizeof(int) + sizeof(int)), sizeof(uint32_t));
+      iFileID = ntohl(iFileID);
+      iOffset = ntohl(iOffset);
+      iCheckSum = ntohl(iCheckSum);
       PLG1Debug("new fileid %d offset %d checksum %u", iFileID, iOffset, iCheckSum);
     }
 
