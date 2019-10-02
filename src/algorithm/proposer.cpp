@@ -28,10 +28,9 @@ See the AUTHORS file for names of contributors.
 namespace phxpaxos
 {
 
-ProposerState :: ProposerState(const Config * poConfig, Group * poGroup)
+ProposerState :: ProposerState(SoftState * poSoftState)
 {
-    m_poConfig = (Config *)poConfig;
-    m_poGroup = poGroup;
+    m_poSoftState = poSoftState;
     Init();
 }
 
@@ -42,13 +41,12 @@ ProposerState :: ~ProposerState()
 void ProposerState :: Init()
 {
     m_sValue.clear();
-    m_llProposalID = m_poGroup->GetProposalID();
+    m_llProposalID = m_poSoftState->GenMyProposalID();
 }
 
 void ProposerState :: NewPrepare()
 {
-    m_poGroup->NewPrepare();
-    m_llProposalID = m_poGroup->GetProposalID();
+    m_llProposalID = m_poSoftState->GenMyProposalID();
 }
 
 
@@ -56,12 +54,6 @@ void ProposerState :: AddPreAcceptValue(
         const BallotNumber & oOtherPreAcceptBallot, 
         const std::string & sOtherPreAcceptValue)
 {
-    PLGDebug("OtherPreAcceptID %lu OtherPreAcceptNodeID %lu HighestOtherPreAcceptID %lu "
-            "HighestOtherPreAcceptNodeID %lu OtherPreAcceptValue %zu",
-            oOtherPreAcceptBallot.m_llProposalID, oOtherPreAcceptBallot.m_llNodeID,
-            m_oHighestOtherPreAcceptBallot.m_llProposalID, m_oHighestOtherPreAcceptBallot.m_llNodeID, 
-            sOtherPreAcceptValue.size());
-
     if (oOtherPreAcceptBallot.isnull())
     {
         return;
@@ -100,7 +92,7 @@ Proposer :: Proposer(
         const Config * poConfig, 
         const MsgTransport * poMsgTransport,
         Group * poGroup)
-    : Base(poConfig, poMsgTransport, poGroup), m_oProposerState(poConfig, poGroup), m_oMsgCounter(poConfig)
+    : Base(poConfig, poMsgTransport, poGroup), m_oProposerState(poGroup->GetSoftState()), m_oMsgCounter(poConfig)
 {
     m_poConfig = (Config *)poConfig;
     m_poGroup = poGroup;
@@ -145,6 +137,20 @@ bool Proposer :: IsWorking()
     return m_bIsPreparing || m_bIsAccepting;
 }
 
+bool Proposer :: NeedPrepare()
+{
+  BallotNumber oMyBallotNumber(m_oProposerState.GetProposalID(), m_poConfig->GetMyNodeID());
+
+  uint64_t llEndPromiseInstanceID{NoCheckpoint};
+  BallotNumber oPromiseBallotNumber = m_poGroup->GetSoftState()->GetPromiseBallot(GetInstanceID(), llEndPromiseInstanceID);
+
+  if (oPromiseBallotNumber.isnull()) {
+    return true;
+  }
+
+  return oPromiseBallotNumber > oMyBallotNumber;
+}
+
 int Proposer :: NewValue(const std::string & sValue)
 {
     BP->GetProposerBP()->NewProposal(sValue);
@@ -158,7 +164,7 @@ int Proposer :: NewValue(const std::string & sValue)
     m_iLastAcceptTimeoutMs = START_ACCEPT_TIMEOUTMS;
 
 
-    if (m_poGroup->NeedPrepare(GetInstanceID()))
+    if (NeedPrepare())
     {
         m_bCanSkipPrepare = false;
     }

@@ -52,7 +52,7 @@ public:
 
 public:
   void SetOtherProposalID(const uint64_t llOtherProposalID);
-  uint64_t GetHighestOtherProposalID();
+  uint64_t GenMyProposalID();
 
 private:
   int m_iMyGroupIdx{-1};

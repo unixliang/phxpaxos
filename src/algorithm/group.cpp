@@ -104,14 +104,14 @@ int Group :: LoadMaxInstanceID(uint64_t & llInstanceID)
     m_sAcceptedValue = oState.acceptedvalue();
     m_iChecksum = oState.checksum();
     */
-
+/*
     PLG1Imp("GroupIdx %d InstanceID %lu PromiseID %lu PromiseNodeID %lu"
            " AccectpedID %lu AcceptedNodeID %lu ValueLen %zu Checksum %u", 
             m_iMyGroupIdx, llInstanceID,
             oState.promiseid(), oState.promisenodeid(),
             oState.acceptedid(), oState.acceptednodeid(), 
             oState.acceptedvalue().size(), oState.checksum());
-    
+*/
     return 0;
 }
 
@@ -351,26 +351,6 @@ Cleaner * Group :: GetCheckpointCleaner()
 Replayer * Group :: GetCheckpointReplayer()
 {
     return m_oCheckpointMgr.GetReplayer();
-}
-
-uint64_t Group :: GetProposalID() const
-{
-    return m_llProposalID;
-}
-
-void Group :: NewPrepare()
-{
-  uint64_t llHighestOtherProposalID = m_poSoftState->GetHighestOtherProposalID();
-
-    PLG1Head("START ProposalID %lu HighestOther %lu MyNodeID %lu",
-            m_llProposalID, llHighestOtherProposalID, m_oConfig.GetMyNodeID());
-
-    uint64_t llMaxProposalID =
-        m_llProposalID > llHighestOtherProposalID ? m_llProposalID : llHighestOtherProposalID;
-
-    m_llProposalID = llMaxProposalID + 1;
-
-    PLG1Head("END New.ProposalID %lu", m_llProposalID);
 }
 
 Learner * Group :: GetLearner()
@@ -791,23 +771,6 @@ void Group :: ProcessCommit()
             m_mapInstances.erase(m_mapInstances.begin());
         }
     }
-}
-
-
-bool Group :: NeedPrepare(const uint64_t llInstanceID)
-{
-    BallotNumber oMyBallotNumber(m_llProposalID, m_oConfig.GetMyNodeID());
-
-    auto poSoftState = GetSoftState();
-    uint64_t llEndPromiseInstanceID{NoCheckpoint};
-    BallotNumber oPromiseBallotNumber = poSoftState->GetPromiseBallot(llInstanceID, llEndPromiseInstanceID);
-
-    if (oPromiseBallotNumber.isnull()) {
-        return true;
-    }
-
-    return oPromiseBallotNumber > oMyBallotNumber;
-
 }
 
 

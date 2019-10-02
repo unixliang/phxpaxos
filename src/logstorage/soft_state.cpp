@@ -137,9 +137,11 @@ void SoftState::SetOtherProposalID(const uint64_t llOtherProposalID) {
     m_llHighestOtherProposalID = llOtherProposalID;
 }
 
-uint64_t SoftState::GetHighestOtherProposalID() {
-  return m_llHighestOtherProposalID;
+uint64_t SoftState::GenMyProposalID() {
+  return m_llHighestOtherProposalID + 1;
 }
+
+
 
 //////////////////////////////////////////////////////
 

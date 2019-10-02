@@ -30,11 +30,12 @@ namespace phxpaxos
 {
 
 class Group;
+class SoftState;
 
 class ProposerState
 {
 public:
-    ProposerState(const Config * poConfig, Group * poGroup);
+    ProposerState(SoftState * poSoftState);
     ~ProposerState();
 
     void Init();
@@ -59,8 +60,7 @@ public:
     uint64_t m_llProposalID{-1};
     BallotNumber m_oHighestOtherPreAcceptBallot;
 
-    Config * m_poConfig;
-    Group * m_poGroup;
+    SoftState * m_poSoftState;
 };
 
 //////////////////////////////////////////////////
@@ -75,6 +75,8 @@ public:
     ~Proposer();
 
     void Init(uint64_t llInstanceID);
+
+    bool NeedPrepare();
 
     int NewValue(const std::string & sValue);
     

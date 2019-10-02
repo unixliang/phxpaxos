@@ -74,10 +74,6 @@ public:
 
     Replayer * GetCheckpointReplayer();
 
-    uint64_t GetProposalID() const;
-
-    void NewPrepare();
-
     void OnReceiveCheckpointMsg(const CheckpointMsg & oCheckpointMsg);
 
     bool ReceiveMsgHeaderCheck(const Header & oHeader, const nodeid_t iFromNodeID);
@@ -89,8 +85,6 @@ public:
     void ReceiveMsgForLearner(const PaxosMsg & oPaxosMsg);
 
     void ProcessCommit();
-
-    bool NeedPrepare(const uint64_t llInstanceID);
 
     Learner * GetLearner();
 
