@@ -143,16 +143,13 @@ bool Proposer :: IsWorking()
 
 bool Proposer :: NeedPrepare()
 {
-  BallotNumber oMyBallotNumber(m_oProposerState.GetProposalID(), m_poConfig->GetMyNodeID());
-
-  uint64_t llEndPromiseInstanceID{NoCheckpoint};
-  BallotNumber oPromiseBallotNumber = m_poGroup->GetSoftState()->GetPromiseBallot(GetInstanceID(), llEndPromiseInstanceID);
-
-  if (oPromiseBallotNumber.isnull()) {
-    return true;
+  if (m_bCanSkipPrepare) {
+    if (m_bWasRejectBySomeone || m_poGroup->GetSoftState()->IsPromiseEnd(GetInstanceID())) {
+      m_bCanSkipPrepare = false;
+    }
   }
 
-  return oPromiseBallotNumber > oMyBallotNumber;
+  return !m_bCanSkipPrepare;
 }
 
 int Proposer :: NewValue(const std::string & sValue)
@@ -168,12 +165,7 @@ int Proposer :: NewValue(const std::string & sValue)
     m_iLastAcceptTimeoutMs = START_ACCEPT_TIMEOUTMS;
 
 
-    if (NeedPrepare())
-    {
-        m_bCanSkipPrepare = false;
-    }
-
-    if (m_bCanSkipPrepare && !m_bWasRejectBySomeone)
+    if (!NeedPrepare())
     {
         BP->GetProposerBP()->NewProposalSkipPrepare();
 
@@ -348,6 +340,8 @@ void Proposer :: OnPrepareReply(const PaxosMsg & oPaxosMsg)
         return;
     }
 
+    m_poGroup->GetSoftState()->SetEndPromiseInstanceID(oPaxosMsg.endpromiseinstanceid());
+ 
     m_oMsgCounter.AddReceive(oPaxosMsg.nodeid());
 
     if (oPaxosMsg.rejectbypromiseid() == 0)
@@ -444,6 +438,10 @@ void Proposer :: OnAcceptReply(const PaxosMsg & oPaxosMsg)
         BP->GetProposerBP()->OnAcceptReplyNotSameProposalIDMsg();
         return;
     }
+
+
+    m_poGroup->GetSoftState()->SetEndPromiseInstanceID(oPaxosMsg.endpromiseinstanceid());
+
 
     m_oMsgCounter.AddReceive(oPaxosMsg.nodeid());
 

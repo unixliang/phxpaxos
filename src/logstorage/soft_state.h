@@ -24,6 +24,7 @@ See the AUTHORS file for names of contributors.
 #include <vector>
 #include <string>
 #include <map>
+#include <set>
 #include "comm_include.h"
 #include "paxos_msg.pb.h"
 
@@ -54,16 +55,26 @@ public:
   void SetOtherProposalID(const uint64_t llOtherProposalID);
   uint64_t GenMyProposalID();
 
+public:
+  void SetEndPromiseInstanceID(const uint64_t llEndInstanceID);
+  bool IsPromiseEnd(const uint64_t llInstanceID);
+
+
 private:
   int m_iMyGroupIdx{-1};
   int m_iMaxWindowSize{0};
 
-  std::map<uint64_t, BallotNumber> m_mapInstanceID2PromiseBallot; // for acceptor OnPrepare
+  // for acceptor below, need to rebuild
+  std::map<uint64_t, BallotNumber> m_mapInstanceID2PromiseBallot; // for acceptor OnPrepare.
 
   uint32_t m_iLastChecksum{0};
   std::map<uint64_t, uint32_t> m_mapInstanceID2LastChecksum;
 
   uint64_t m_llHighestOtherProposalID{0};
+
+  // for proposer below, no need to rebuild
+  bool m_bHasJudgePromiseEnd{false};
+  std::set<uint64_t> m_setEndPromiseInstanceID; // for propser record in OnPrepareReply/OnAccepeReply
 };
 
 class MultiSoftState {

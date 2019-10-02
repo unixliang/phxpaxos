@@ -141,6 +141,25 @@ uint64_t SoftState::GenMyProposalID() {
   return m_llHighestOtherProposalID + 1;
 }
 
+void SoftState::SetEndPromiseInstanceID(const uint64_t llEndInstanceID) {
+  m_setEndPromiseInstanceID.insert(llEndInstanceID);
+  while (m_setEndPromiseInstanceID.size() > m_iMaxWindowSize)
+  {
+    m_setEndPromiseInstanceID.erase(m_setEndPromiseInstanceID.begin());
+  }
+}
+
+bool SoftState::IsPromiseEnd(const uint64_t llInstanceID) {
+  if (!m_bHasJudgePromiseEnd) {
+    m_bHasJudgePromiseEnd = true;
+    return true;
+  }
+  if (m_setEndPromiseInstanceID.empty()) { // not prepare yet
+    return true;
+  }
+  return m_setEndPromiseInstanceID.end() != m_setEndPromiseInstanceID.find(llInstanceID);
+}
+
 
 
 //////////////////////////////////////////////////////
