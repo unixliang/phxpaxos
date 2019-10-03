@@ -115,41 +115,6 @@ int Group :: LoadMaxInstanceID(uint64_t & llInstanceID)
     return 0;
 }
 
-int Group :: InitLastCheckSum()
-{
-    if (m_llNowInstanceID == 0)
-    {
-        m_iLastChecksum = 0;
-        return 0;
-    }
-
-    if (m_llNowInstanceID <= m_oCheckpointMgr.GetMinChosenInstanceID())
-    {
-        m_iLastChecksum = 0;
-        return 0;
-    }
-
-    AcceptorStateData oState;
-    int ret = m_oPaxosLog.ReadState(m_iMyGroupIdx, m_llNowInstanceID - 1, oState);
-    if (ret != 0 && ret != 1)
-    {
-        return ret;
-    }
-
-    if (ret == 1)
-    {
-        PLG1Err("las checksum not exist, now instanceid %lu", m_llNowInstanceID);
-        m_iLastChecksum = 0;
-        return 0;
-    }
-
-    m_iLastChecksum = oState.checksum();
-
-    PLG1Imp("ok, last checksum %u", m_iLastChecksum);
-
-    return 0;
-}
-
 void Group :: Init()
 {
 
@@ -264,12 +229,6 @@ void Group :: Init()
         //m_oProposer.SetInstanceID(m_llNowInstanceID);
 
         m_oCheckpointMgr.SetNowInstanceID(m_llNowInstanceID);
-
-        m_iInitRet = InitLastCheckSum();
-        if (m_iInitRet != 0)
-        {
-            return;
-        }
 
         m_oLearner.Reset_AskforLearn_Noop();
 

@@ -142,9 +142,6 @@ private:
 
     uint64_t m_llNowInstanceID{-1};
     uint64_t m_llNowIdleInstanceID{-1};
-    uint32_t m_iLastChecksum{0};
-
-    uint64_t m_llProposalID{0};
 
     bool m_bStarted{false};
 
