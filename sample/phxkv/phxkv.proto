@@ -2,12 +2,16 @@ syntax = "proto3";
 
 package phxkv;
 
+option cc_generic_services = false;
+
 service PhxKVServer {
 	rpc Put(KVOperator) returns (KVResponse) { }
 	rpc GetLocal(KVOperator) returns (KVResponse) { }
 	rpc GetGlobal(KVOperator) returns (KVResponse) { }
 	rpc Delete(KVOperator) returns (KVResponse) { }
 }
+
+
 
 message KVOperator
 {
