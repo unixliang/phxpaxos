@@ -26,6 +26,8 @@ See the AUTHORS file for names of contributors.
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <chrono>
+#include <iostream>
 
 using namespace phxpaxos;
 using namespace std;
@@ -41,7 +43,7 @@ PhxKV :: PhxKV(const phxpaxos::NodeInfo & oMyNode, const phxpaxos::NodeInfoList 
 {
     //only show you how to use multi paxos group, you can set as 1, 2, or any other number.
     //not too large.
-    m_iGroupCount = 3;
+    m_iGroupCount = 1;
 }
 
 PhxKV :: ~PhxKV()
@@ -79,6 +81,7 @@ int PhxKV :: RunPaxos()
 
     oOptions.oMyNode = m_oMyNode;
     oOptions.vecNodeInfoList = m_vecNodeList;
+    oOptions.bUseBatchPropose = true;
 
     //because all group share state machine(kv), so every group have same state machine.
     //just for split key to different paxos group, to upgrate performance.
@@ -103,6 +106,12 @@ int PhxKV :: RunPaxos()
     }
 
     PLImp("run paxos ok\n");
+
+    for (int iGroupIdx = 0; iGroupIdx < m_iGroupCount; iGroupIdx++)
+    {
+        m_poPaxosNode->SetMasterLease(iGroupIdx, 1001);
+    }
+    
     return 0;
 }
 
@@ -127,10 +136,15 @@ int PhxKV :: KVPropose(const std::string & sKey, const std::string & sPaxosValue
     oCtx.m_pCtx = (void *)&oPhxKVSMCtx;
 
     uint64_t llInstanceID = 0;
-    int ret = m_poPaxosNode->Propose(iGroupIdx, sPaxosValue, llInstanceID, &oCtx);
+    //int ret = m_poPaxosNode->Propose(iGroupIdx, sPaxosValue, llInstanceID, &oCtx);
+    uint32_t tmp;
+    auto start=std::chrono::high_resolution_clock::now();
+    int ret = m_poPaxosNode->BatchPropose(iGroupIdx, sPaxosValue, llInstanceID, tmp, &oCtx);
+    auto end=std::chrono::high_resolution_clock::now();
+    std::cerr<<"Propose latency: "<<std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count()<<"ms\n";
     if (ret != 0)
     {
-        PLErr("paxos propose fail, key %s groupidx %d ret %d", iGroupIdx, ret);
+        PLErr("paxos propose fail, key %s groupidx %d ret %d", sKey, iGroupIdx, ret);
         return ret;
     }
 
@@ -139,11 +153,10 @@ int PhxKV :: KVPropose(const std::string & sKey, const std::string & sPaxosValue
 
 PhxKVStatus PhxKV :: Put(
         const std::string & sKey, 
-        const std::string & sValue, 
-        const uint64_t llVersion)
+        const std::string & sValue)
 {
     string sPaxosValue;
-    bool bSucc = PhxKVSM::MakeSetOpValue(sKey, sValue, llVersion, sPaxosValue);
+    bool bSucc = PhxKVSM::MakeSetOpValue(sKey, sValue, sPaxosValue);
     if (!bSucc)
     {
         return PhxKVStatus::FAIL;
@@ -159,10 +172,6 @@ PhxKVStatus PhxKV :: Put(
     if (oPhxKVSMCtx.iExecuteRet == KVCLIENT_OK)
     {
         return PhxKVStatus::SUCC;
-    }
-    else if (oPhxKVSMCtx.iExecuteRet == KVCLIENT_KEY_VERSION_CONFLICT)
-    {
-        return PhxKVStatus::VERSION_CONFLICT; 
     }
     else
     {
@@ -172,49 +181,16 @@ PhxKVStatus PhxKV :: Put(
 
 PhxKVStatus PhxKV :: GetLocal(
         const std::string & sKey, 
-        std::string & sValue, 
-        uint64_t & llVersion)
+        std::string & sValue)
 {
-    int ret = m_oPhxKVSM.GetKVClient()->Get(sKey, sValue, llVersion);
+    int ret = m_oPhxKVSM.GetKVClient()->Get(sKey, sValue);
     if (ret == KVCLIENT_OK)
     {
         return PhxKVStatus::SUCC;
     }
     else if (ret == KVCLIENT_KEY_NOTEXIST)
     {
-        return PhxKVStatus::KEY_NOTEXIST; 
-    }
-    else
-    {
-        return PhxKVStatus::FAIL;
-    }
-}
-
-PhxKVStatus PhxKV :: Delete( 
-        const std::string & sKey, 
-        const uint64_t llVersion)
-{
-    string sPaxosValue;
-    bool bSucc = PhxKVSM::MakeDelOpValue(sKey, llVersion, sPaxosValue);
-    if (!bSucc)
-    {
-        return PhxKVStatus::FAIL;
-    }
-
-    PhxKVSMCtx oPhxKVSMCtx;
-    int ret = KVPropose(sKey, sPaxosValue, oPhxKVSMCtx);
-    if (ret != 0)
-    {
-        return PhxKVStatus::FAIL;
-    }
-
-    if (oPhxKVSMCtx.iExecuteRet == KVCLIENT_OK)
-    {
-        return PhxKVStatus::SUCC;
-    }
-    else if (oPhxKVSMCtx.iExecuteRet == KVCLIENT_KEY_VERSION_CONFLICT)
-    {
-        return PhxKVStatus::VERSION_CONFLICT; 
+        return PhxKVStatus::KEY_NOTEXIST;
     }
     else
     {

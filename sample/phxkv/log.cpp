@@ -49,7 +49,6 @@ int LoggerGuard :: Init(const std::string & sModuleName, const std::string & sLo
         printf("get logger_google fail, ret %d\n", ret);
         return ret;
     }
-
     return 0;
 }
 

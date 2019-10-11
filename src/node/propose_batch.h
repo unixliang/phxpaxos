@@ -25,9 +25,11 @@ See the AUTHORS file for names of contributors.
 #include "utils_include.h"
 #include "phxpaxos/node.h"
 #include <mutex>
+#include <memory>
 #include <queue>
 #include <condition_variable>
 #include <thread>
+#include <functional>
 
 namespace phxpaxos
 {
@@ -36,15 +38,17 @@ class PendingProposal
 {
 public:
     PendingProposal();
-    const std::string * psValue;
+    std::string psValue;
     SMCtx * poSMCtx;
 
     //return parameter
     uint64_t * pllInstanceID; 
     uint32_t * piBatchIndex;
 
-    //notify
-    Notifier * poNotifier;
+    // callback
+    // void callback(int status);
+    std::function<void(int)> callback;
+    // Notifier * poNotifier;
 
     uint64_t llAbsEnqueueTime;
 };
@@ -65,38 +69,38 @@ public:
 
     int Propose(const std::string & sValue, uint64_t & llInstanceID, uint32_t & iBatchIndex, SMCtx * poSMCtx);
 
-public:
+    void AsyncPropose(const std::string & sValue, uint64_t & llInstanceID, uint32_t & iBatchIndex, SMCtx * poSMCtx, std::function<void(int)> callback);
+
     void SetBatchCount(const int iBatchCount);
+
     void SetBatchDelayTimeMs(const int iBatchDelayTimeMs);
 
-protected:
-    virtual void DoPropose(std::vector<PendingProposal> & vecRequest);
+    void SetBatchAdaptiveDelayTimeMs(const int iBatchAdaptiveDelayTimeMs);
+
+    virtual void DoPropose(const std::vector<PendingProposal> & vecRequest);
 
 private:
     void AddProposal(const std::string & sValue, uint64_t & llInstanceID, uint32_t & iBatchIndex, 
-            SMCtx * poSMCtx, Notifier * poNotifier);
+            SMCtx * poSMCtx, std::function<void(int)> callback);
     void PluckProposal(std::vector<PendingProposal> & vecRequest);
-    void OnlyOnePropose(PendingProposal & oPendingProposal);
+    void OnlyOnePropose(const PendingProposal oPendingProposal);
     const bool NeedBatch();
-
-private:
     const int m_iMyGroupIdx;
     Node * m_poPaxosNode;
     NotifierPool * m_poNotifierPool;
 
     std::mutex m_oMutex;
-    std::condition_variable m_oCond;
     std::queue<PendingProposal> m_oQueue;
-    bool m_bIsEnd;
-    bool m_bIsStarted;
-    int m_iNowQueueValueSize;
+    bool m_bIsEnd = false;
+    int m_iNowQueueValueSize = 0;
+    int m_iBatchCount = 1024*1024;
+    int m_iBatchDelayTimeMs = 100;
+    int m_iAdaptiveBatchDelayTimeMs = 3;
+    int m_iBatchMaxSize = 4*1024*1024;
 
-private:
-    int m_iBatchCount;
-    int m_iBatchDelayTimeMs;
-    int m_iBatchMaxSize;
-
-    std::thread * m_poThread;
+    std::unique_ptr<Alarm> alarm, adaptiveAlarm;
+    std::thread T, callbackT;
+    ConcurrentQueue<std::function<void()>> Q, callbackQ;
 };
 
 }

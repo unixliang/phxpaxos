@@ -23,6 +23,10 @@ See the AUTHORS file for names of contributors.
 
 #include <map>
 #include <mutex>
+#include <atomic>
+#include <condition_variable>
+#include <queue>
+#include <type_traits>
 
 namespace phxpaxos
 {
@@ -56,6 +60,58 @@ public:
 private:
     std::map<uint64_t, Notifier *> m_mapPool;
     std::mutex m_oMutex;
+};
+
+template <typename T> class ConcurrentQueue {
+public:
+  void push(const T &Val) {
+    {
+      std::lock_guard<std::mutex> Lock(M);
+      ++Counter;
+      Q.push(Val);
+    }
+    Cv.notify_one();
+  }
+  void push(T &&Val) {
+    {
+      std::lock_guard<std::mutex> Lock(M);
+      ++Counter;
+      Q.emplace(Val);
+    }
+    Cv.notify_one();
+  }
+  // Block if the queue is empty
+  T pop(bool &ok) {
+    std::unique_lock<std::mutex> Lock(M);
+    Cv.wait(Lock, [this] { return Counter > 0 || Shutdown == true; });
+    if (Counter > 0) {
+      ok = true;
+      --Counter;
+      T Front = Q.front();
+      Q.pop();
+      Lock.unlock();
+      return Front;
+    }
+    ok = false;
+    Lock.unlock();
+    return T();
+  }
+  void shutdown() {
+    {
+      std::lock_guard<std::mutex> Lock(M);
+      Shutdown = true;
+    }
+    Cv.notify_all();
+  }
+
+  ConcurrentQueue() = default;
+
+private:
+  uint64_t Counter = 0;
+  std::mutex M;
+  std::condition_variable Cv;
+  std::queue<T> Q;
+  bool Shutdown = false;
 };
 
 }

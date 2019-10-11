@@ -28,6 +28,7 @@ See the AUTHORS file for names of contributors.
 #include <chrono>
 #include <vector>
 #include <algorithm>
+#include <iostream>
 
 using namespace std;
 
@@ -40,42 +41,70 @@ uint64_t GetThreadID()
 }
 
 PendingProposal :: PendingProposal()
-    : psValue(nullptr), poSMCtx(nullptr), pllInstanceID(nullptr), 
-    piBatchIndex(nullptr), poNotifier(nullptr), llAbsEnqueueTime(0)
+    : poSMCtx(nullptr), pllInstanceID(nullptr), 
+    piBatchIndex(nullptr), llAbsEnqueueTime(0)
 {
 }
 
 ////////////////////////////////////////////////////////////////////
 
 ProposeBatch :: ProposeBatch(const int iGroupIdx, Node * poPaxosNode, NotifierPool * poNotifierPool)
-    : m_iMyGroupIdx(iGroupIdx), m_poPaxosNode(poPaxosNode), 
-    m_poNotifierPool(poNotifierPool), m_bIsEnd(false), m_bIsStarted(false), m_iNowQueueValueSize(0),
-    m_iBatchCount(5), m_iBatchDelayTimeMs(20), m_iBatchMaxSize(500 * 1024),
-    m_poThread(nullptr)
-{
+    : m_iMyGroupIdx(iGroupIdx), m_poPaxosNode(poPaxosNode), m_poNotifierPool(poNotifierPool), 
+      alarm(new Alarm(m_iBatchDelayTimeMs,
+                      static_cast<std::function<void()>>([this](){
+                          this->Run();
+                      }))),
+     adaptiveAlarm(new Alarm(m_iAdaptiveBatchDelayTimeMs,
+                      static_cast<std::function<void()>>([this](){
+                          this->Run();
+                      }))) {
+    T = std::move(std::thread([this]() {
+      while (true) {
+        bool ok = false;
+        auto P = this->Q.pop(ok);
+        if (ok)
+          P();
+        else
+          return;
+      }
+    }));
+
+    callbackT = std::move(std::thread([this]() {
+      while (true) {
+        bool ok = false;
+        auto P = this->callbackQ.pop(ok);
+        if (ok)
+          P();
+        else
+          return;
+      }
+    }));
 }
 
-ProposeBatch :: ~ProposeBatch()
-{
-    delete m_poThread;
+ProposeBatch :: ~ProposeBatch() {
+    Q.shutdown();
+    callbackQ.shutdown();
+    T.join();
+    callbackT.join();
 }
 
-void ProposeBatch :: Start()
-{
-    m_poThread = new std::thread(&ProposeBatch::Run, this);
-    assert(m_poThread != nullptr);
-}
+void ProposeBatch :: Start() {}
 
 void ProposeBatch :: Stop()
 {
-    if (m_bIsStarted)
+    alarm->disarm();
+    adaptiveAlarm->disarm();
+    std::lock_guard<std::mutex> oLock(m_oMutex);
+    m_bIsEnd = true;
+    //notify all waiting thread.
+    while (!m_oQueue.empty())
     {
-        std::unique_lock<std::mutex> oLock(m_oMutex);
-        m_bIsEnd = true;
-        m_oCond.notify_all();
-        oLock.unlock();
-
-        m_poThread->join();
+        PendingProposal oPendingProposal = m_oQueue.front();
+        auto func = [=]() {
+            oPendingProposal.callback(Paxos_SystemError);
+        };
+        callbackQ.push(func);
+        m_oQueue.pop();
     }
 }
 
@@ -84,9 +113,42 @@ void ProposeBatch :: SetBatchCount(const int iBatchCount)
     m_iBatchCount = iBatchCount;
 }
 
+void ProposeBatch :: SetBatchAdaptiveDelayTimeMs(const int iBatchAdaptiveDelayTimeMs)
+{
+    adaptiveAlarm->resetTimeout(iBatchAdaptiveDelayTimeMs);
+}
+
 void ProposeBatch :: SetBatchDelayTimeMs(const int iBatchDelayTimeMs)
 {
     m_iBatchDelayTimeMs = iBatchDelayTimeMs;
+    alarm->resetTimeout(m_iBatchDelayTimeMs);
+}
+
+void ProposeBatch :: AsyncPropose(const std::string & sValue, uint64_t & llInstanceID, uint32_t & iBatchIndex, SMCtx * poSMCtx, std::function<void(int)> callback)
+{
+    //std::cerr<<"A\n";
+    auto func = [=](int status) {
+        if (status == PaxosTryCommitRet_OK)
+            BP->GetCommiterBP()->BatchProposeOK();
+        else
+            BP->GetCommiterBP()->BatchProposeFail();
+        callback(status);
+    };
+    //std::cerr<<"B\n";
+
+    if (m_bIsEnd)
+    {
+        auto failfunc = [=]() {
+            callback(Paxos_SystemError);
+        };
+        callbackQ.push(failfunc);
+        return;
+    }
+
+    BP->GetCommiterBP()->BatchPropose();
+    //std::cerr<<"C\n";
+    AddProposal(sValue, llInstanceID, iBatchIndex, poSMCtx, func);
+    //std::cerr<<"D\n";
 }
 
 int ProposeBatch :: Propose(const std::string & sValue, uint64_t & llInstanceID, uint32_t & iBatchIndex, SMCtx * poSMCtx)
@@ -109,18 +171,17 @@ int ProposeBatch :: Propose(const std::string & sValue, uint64_t & llInstanceID,
         return Paxos_SystemError;
     }
 
-    AddProposal(sValue, llInstanceID, iBatchIndex, poSMCtx, poNotifier);
+    auto func=[=](int status) {
+        if (status == PaxosTryCommitRet_OK)
+            BP->GetCommiterBP()->BatchProposeOK();
+        else
+            BP->GetCommiterBP()->BatchProposeFail();
+        poNotifier->SendNotify(status);
+    };
+
+    AddProposal(sValue, llInstanceID, iBatchIndex, poSMCtx, func);
 
     poNotifier->WaitNotify(ret);
-    if (ret == PaxosTryCommitRet_OK)
-    {
-        BP->GetCommiterBP()->BatchProposeOK();
-    }
-    else
-    {
-        BP->GetCommiterBP()->BatchProposeFail();
-    }
-
     return ret;
 }
 
@@ -147,21 +208,24 @@ const bool ProposeBatch :: NeedBatch()
 }
 
 void ProposeBatch :: AddProposal(const std::string & sValue, uint64_t & llInstanceID, uint32_t & iBatchIndex,
-        SMCtx * poSMCtx, Notifier * poNotifier)
+        SMCtx * poSMCtx, std::function<void(int)> callback)
 {
     std::unique_lock<std::mutex> oLock(m_oMutex);
+    if(!alarm->isArmed())
+        alarm->rearm();
+    adaptiveAlarm->rearm();
 
     PendingProposal oPendingProposal;
-    oPendingProposal.poNotifier = poNotifier;
-    oPendingProposal.psValue = &sValue;
+    oPendingProposal.callback = callback;
+    oPendingProposal.psValue = sValue;
     oPendingProposal.poSMCtx = poSMCtx;
     oPendingProposal.pllInstanceID = &llInstanceID;
     oPendingProposal.piBatchIndex = &iBatchIndex;
     oPendingProposal.llAbsEnqueueTime = Time::GetSteadyClockMS();
 
     m_oQueue.push(oPendingProposal);
-    m_iNowQueueValueSize += (int)oPendingProposal.psValue->size();
-
+    m_iNowQueueValueSize += (int)oPendingProposal.psValue.size();
+    //std::cerr<<"AddProposal\n";
     if (NeedBatch())
     {
         PLG1Debug("direct batch, queue size %zu value size %d", m_oQueue.size(), m_iNowQueueValueSize);
@@ -170,60 +234,27 @@ void ProposeBatch :: AddProposal(const std::string & sValue, uint64_t & llInstan
         PluckProposal(vecRequest);
 
         oLock.unlock();
-        DoPropose(vecRequest);
+
+        auto func=[=]() {
+            this->DoPropose(vecRequest);
+        };
+        Q.push(func);
     }
 }
 
 void ProposeBatch :: Run()
 {
-    m_bIsStarted = true;
-    //daemon thread for very low qps.
-    TimeStat oTimeStat;
-    while (true)
-    {
-        std::unique_lock<std::mutex> oLock(m_oMutex);
-
+    vector<PendingProposal> vecRequest;
+    {    
+        std::lock_guard<std::mutex> oLock(m_oMutex);
+        adaptiveAlarm->disarm();
+        alarm->disarm();
         if (m_bIsEnd)
-        {
-            break;
-        }
-
-        oTimeStat.Point();
-
-        vector<PendingProposal> vecRequest;
+            return;
+        
         PluckProposal(vecRequest);
-
-        oLock.unlock();
-        DoPropose(vecRequest);
-        oLock.lock();
-
-        int iPassTime = oTimeStat.Point();
-        int iNeedSleepTime = iPassTime < m_iBatchDelayTimeMs ?
-            m_iBatchDelayTimeMs - iPassTime : 0;
-
-        if (NeedBatch())
-        {
-            iNeedSleepTime = 0;
-        }
-
-        if (iNeedSleepTime > 0)
-        {
-            m_oCond.wait_for(oLock, std::chrono::milliseconds(iNeedSleepTime));
-        }
-
-        //PLG1Debug("one loop, sleep time %dms", iNeedSleepTime);
     }
-
-    //notify all waiting thread.
-    std::unique_lock<std::mutex> oLock(m_oMutex);
-    while (!m_oQueue.empty())
-    {
-        PendingProposal & oPendingProposal = m_oQueue.front();
-        oPendingProposal.poNotifier->SendNotify(Paxos_SystemError);
-        m_oQueue.pop();
-    }
-
-    PLG1Head("Ended.");
+    DoPropose(vecRequest);
 }
 
 void ProposeBatch :: PluckProposal(std::vector<PendingProposal> & vecRequest)
@@ -232,15 +263,15 @@ void ProposeBatch :: PluckProposal(std::vector<PendingProposal> & vecRequest)
     int iPluckSize = 0;
 
     uint64_t llNowTime = Time::GetSteadyClockMS();
-
+    vecRequest.reserve(m_oQueue.size());
     while (!m_oQueue.empty())
     {
         PendingProposal & oPendingProposal = m_oQueue.front();
         vecRequest.push_back(oPendingProposal);
 
         iPluckCount++;
-        iPluckSize += oPendingProposal.psValue->size();
-        m_iNowQueueValueSize -= oPendingProposal.psValue->size();
+        iPluckSize += oPendingProposal.psValue.size();
+        m_iNowQueueValueSize -= oPendingProposal.psValue.size();
 
         {
             int iProposalWaitTime = llNowTime > oPendingProposal.llAbsEnqueueTime ?
@@ -250,11 +281,11 @@ void ProposeBatch :: PluckProposal(std::vector<PendingProposal> & vecRequest)
 
         m_oQueue.pop();
 
-        if (iPluckCount >= m_iBatchCount
-                || iPluckSize >= m_iBatchMaxSize)
-        {
-            break;
-        }
+        //if (iPluckCount >= m_iBatchCount
+        //        || iPluckSize >= m_iBatchMaxSize)
+        //{
+        //    break;
+        //}
     }
 
     if (vecRequest.size() > 0)
@@ -263,35 +294,36 @@ void ProposeBatch :: PluckProposal(std::vector<PendingProposal> & vecRequest)
     }
 }
 
-void ProposeBatch :: OnlyOnePropose(PendingProposal & oPendingProposal)
+void ProposeBatch :: OnlyOnePropose(const PendingProposal oPendingProposal)
 {
-    int ret = m_poPaxosNode->Propose(m_iMyGroupIdx, *oPendingProposal.psValue,
+    int ret = m_poPaxosNode->Propose(m_iMyGroupIdx, oPendingProposal.psValue,
             *oPendingProposal.pllInstanceID, oPendingProposal.poSMCtx);
-    oPendingProposal.poNotifier->SendNotify(ret);
+    auto func = [=]() {
+        oPendingProposal.callback(ret);
+    };
+    callbackQ.push(func);
 }
 
-void ProposeBatch :: DoPropose(std::vector<PendingProposal> & vecRequest)
+void ProposeBatch :: DoPropose(const std::vector<PendingProposal> & vecRequest)
 {
-    if (vecRequest.size() == 0)
-    {
+    //std::cerr<<"DoPropose\n";
+    // No request
+    if (vecRequest.empty())
         return;
-    }
 
     BP->GetCommiterBP()->BatchProposeDoPropose((int)vecRequest.size());
 
     if (vecRequest.size() == 1)
-    {
-        OnlyOnePropose(vecRequest[0]);
-        return;
-    }
+        return OnlyOnePropose(vecRequest[0]);
 
     BatchPaxosValues oBatchValues;
     BatchSMCtx oBatchSMCtx;
+    oBatchSMCtx.m_vecSMCtxList.reserve(vecRequest.size());
     for (auto & oPendingProposal : vecRequest)
     {
         PaxosValue * poValue = oBatchValues.add_values();
         poValue->set_smid(oPendingProposal.poSMCtx != nullptr ? oPendingProposal.poSMCtx->m_iSMID : 0);
-        poValue->set_value(*oPendingProposal.psValue);
+        poValue->set_value(oPendingProposal.psValue);
 
         oBatchSMCtx.m_vecSMCtxList.push_back(oPendingProposal.poSMCtx);
     }
@@ -320,10 +352,15 @@ void ProposeBatch :: DoPropose(std::vector<PendingProposal> & vecRequest)
 
     for (size_t i = 0; i < vecRequest.size(); i++)
     {
-        PendingProposal & oPendingProposal = vecRequest[i];
+        const PendingProposal oPendingProposal = vecRequest[i];
         *oPendingProposal.piBatchIndex = (uint32_t)i;
-        *oPendingProposal.pllInstanceID = llInstanceID; 
-        oPendingProposal.poNotifier->SendNotify(ret);
+        *oPendingProposal.pllInstanceID = llInstanceID;
+        auto func = [=]() {
+            //std::cerr<<"DoPropose-run cb\n";
+            oPendingProposal.callback(ret);
+        };
+        //std::cerr<<"DoPropose-add cb\n";
+        callbackQ.push(func);
     }
 }
 

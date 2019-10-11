@@ -25,6 +25,8 @@ See the AUTHORS file for names of contributors.
 #include "phxpaxos/options.h"
 #include <vector>
 #include "soft_state.h"
+#include <functional>
+
 #include "db.h"
 #include "dfnetwork.h"
 #include "group.h"
@@ -56,8 +58,13 @@ public:
             uint64_t & llInstanceID, uint32_t & iBatchIndex);
     int BatchPropose(const int iGroupIdx, const std::string & sValue, 
             uint64_t & llInstanceID, uint32_t & iBatchIndex, SMCtx * poSMCtx);
+    void AsyncBatchPropose(const int iGroupIdx, const std::string sValue, 
+            uint64_t & llInstanceID, uint32_t & iBatchIndex, std::function<void(int)> callback);
+    void AsyncBatchPropose(const int iGroupIdx, const std::string sValue, 
+            uint64_t & llInstanceID, uint32_t & iBatchIndex, SMCtx * poSMCtx, std::function<void(int)> callback);
     void SetBatchCount(const int iGroupIdx, const int iBatchCount);
     void SetBatchDelayTimeMs(const int iGroupIdx, const int iBatchDelayTimeMs);
+    void SetBatchAdaptiveDelayTimeMs(const int iGroupIdx, const int iBatchAdptiveDelayTimeMs);
 
 public:
     void AddStateMachine(StateMachine * poSM);

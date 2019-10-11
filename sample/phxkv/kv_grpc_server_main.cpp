@@ -23,6 +23,13 @@ See the AUTHORS file for names of contributors.
 #include <iostream>
 #include <memory>
 #include <string>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 #include "log.h"
 
 #include <grpc++/grpc++.h>
@@ -45,9 +52,8 @@ int parse_ipport(const char * pcStr, NodeInfo & oNodeInfo)
     {
         return -1;
     }
-
-    oNodeInfo.SetIPPort(sIP, iPort);
-
+    auto* tmp=gethostbyname(sIP);
+    oNodeInfo.SetIPPort(inet_ntoa( *(struct in_addr*)tmp->h_addr_list[0] ), iPort);
     return 0;
 }
 
@@ -87,37 +93,62 @@ int parse_ipport_list(const char * pcStr, NodeInfoList & vecNodeInfoList)
 
 int main(int argc, char ** argv)
 {
-    if (argc < 6)
+    if (argc < 3)
     {
-        printf("%s <grpc myip:myport> <paxos myip:myport> <node0_ip:node_0port,node1_ip:node_1_port,node2_ip:node2_port,...> <kvdb storagepath> <paxoslog storagepath>\n", argv[0]);
+        printf("%s <node0_ip:node_0port,node1_ip:node_1_port,node2_ip:node2_port,...>\n", argv[0]);
         return -1;
     }
-
-    string sServerAddress = argv[1];
-
-    NodeInfo oMyNode;
-    if (parse_ipport(argv[2], oMyNode) != 0)
+    int mkret;
+    system("rm -rf /phxpaxos");
+    mkret = mkdir("/phxpaxos", S_IRWXU| S_IRWXG| S_IRWXO);
+    if(mkret == -1)
     {
+        cerr<<"/phxpaxos\n";
+        abort();
+    }
+    mkret = mkdir("/phxpaxos/log1", S_IRWXU| S_IRWXG| S_IRWXO);
+    if(mkret == -1)
+    {
+        cerr<<"/phxpaxos/log1\n";
+        abort();
+    }
+    mkret = mkdir("/phxpaxos/log2", S_IRWXU| S_IRWXG| S_IRWXO);
+    if(mkret == -1)
+    {
+        cerr<<"/phxpaxos/log2\n";
+        abort();
+    }
+
+    // string sServerAddress = argv[1];
+    string sServerAddress = "0.0.0.0:50002";
+    auto* tmp=gethostbyname(argv[1]);
+    string sPaxosAddress = inet_ntoa( *(struct in_addr*)tmp->h_addr_list[0] );
+    sPaxosAddress+=":50001";
+    NodeInfo oMyNode;
+    if (parse_ipport(sPaxosAddress.c_str(), oMyNode) != 0)
+    {
+        cerr<<sPaxosAddress<<endl;
         printf("parse myip:myport fail\n");
         return -1;
     }
 
     NodeInfoList vecNodeInfoList;
-    if (parse_ipport_list(argv[3], vecNodeInfoList) != 0)
+    if (parse_ipport_list(argv[2], vecNodeInfoList) != 0)
     {
         printf("parse ip/port list fail\n");
         return -1;
     }
 
-    string sKVDBPath = argv[4];
-    string sPaxosLogPath = argv[5];
+    string sKVDBPath = "/phxpaxos/log1";
+    string sPaxosLogPath = "/phxpaxos/log2";
 
-    int ret = LOGGER->Init("phxkv", "./log", 3);
-    if (ret != 0)
-    {
-        printf("server log init fail, ret %d\n", ret);
-        return ret;
-    }
+    int ret = 0;
+    //int ret = LOGGER->Init("phxkv", "./log", 3);
+    //if (ret != 0)
+    //{
+    //    printf("server log init fail, ret %d\n", ret);
+    //    return ret;
+    //}
 
     NLDebug("server init start.............................");
 
