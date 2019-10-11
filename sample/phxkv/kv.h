@@ -48,11 +48,9 @@ public:
 
     static KVClient * Instance();
 
-    KVClientRet Get(const std::string & sKey, std::string & sValue, uint64_t & llVersion);
+    KVClientRet Get(const std::string & sKey, std::string & sValue);
 
-    KVClientRet Set(const std::string & sKey, const std::string & sValue, const uint64_t llVersion);
-
-    KVClientRet Del(const std::string & sKey, const uint64_t llVersion);
+    KVClientRet Set(const std::string & sKey, const std::string & sValue);
 
     KVClientRet GetCheckpointInstanceID(uint64_t & llCheckpointInstanceID);
 

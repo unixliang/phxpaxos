@@ -39,11 +39,11 @@ PHXKV_CLIENT_TOOLS_INCS=$(SRC_BASE_PATH)/sample/phxkv
 
 PHXKV_CLIENT_TOOLS_EXTRA_CPPFLAGS=-Wall
 
-PHXKV_GRPCSERVER_OBJ=phxkv.pb.o phxkv.grpc.pb.o kv.o kvsm.o kv_paxos.o log.o kv_grpc_server.o kv_grpc_server_main.o
+PHXKV_GRPCSERVER_OBJ=phxkv.pb.o phxkv.grpc.pb.o kv.o kvsm.o kv_paxos.o log.o kv_grpc_server.o kv_grpc_server_main.o kv_grpc_client.o
 
 PHXKV_GRPCSERVER_LIB=
 
-PHXKV_GRPCSERVER_SYS_LIB=$(PHXPAXOS_LIB_PATH)/libphxpaxos_plugin.a $(PHXPAXOS_LIB_PATH)/libphxpaxos.a $(LEVELDB_LIB_PATH)/libleveldb.a $(GRPC_LIBE_PATH)/libgrpc++_unsecure.a $(GRPC_LIBE_PATH)/libgrpc.a $(PROTOBUF_LIB_PATH)/libprotobuf.a $(GLOG_LIB_PATH)/libglog.a $(GFLAGS_LIB_PATH)/libgflags.a -lssl -lcrypto -ldl -lz -lrt -lpthread
+PHXKV_GRPCSERVER_SYS_LIB=$(PHXPAXOS_LIB_PATH)/libphxpaxos_plugin.a $(PHXPAXOS_LIB_PATH)/libphxpaxos.a $(LEVELDB_LIB_PATH)/libleveldb.a $(GRPC_LIBE_PATH)/libgrpc++_unsecure.a $(GRPC_LIBE_PATH)/libgrpc.a $(PROTOBUF_LIB_PATH)/libprotobuf.a $(GLOG_LIB_PATH)/libglog.a $(GFLAGS_LIB_PATH)/libgflags.a -lssl -lcrypto -ldl -lz -lrt -lpthread -lsnappy -lunwind
 
 PHXKV_GRPCSERVER_INCS=$(SRC_BASE_PATH)/sample/phxkv  $(PHXPAXOS_PLUGIN_PATH) $(GRPC_INCLUDE_PATH) $(GRPC_INCLUDE_PATH) $(PHXPAXOS_INCLUDE_PATH) $(LEVELDB_INCLUDE_PATH) $(PROTOBUF_INCLUDE_PATH) 
 

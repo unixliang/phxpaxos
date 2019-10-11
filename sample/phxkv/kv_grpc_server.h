@@ -23,6 +23,7 @@ See the AUTHORS file for names of contributors.
 
 #include <grpc++/grpc++.h>
 #include "phxkv.grpc.pb.h"
+#include "kv_grpc_client.h"
 #include "kv_paxos.h"
 
 namespace phxkv
@@ -42,10 +43,9 @@ public:
 
     grpc::Status GetGlobal(grpc::ServerContext* context, const KVOperator * request, KVResponse * reply) override;
 
-    grpc::Status Delete(grpc::ServerContext* context, const KVOperator * request, KVResponse * reply) override;
-
 private:
     PhxKV m_oPhxKV;
+    PhxKVClient client=PhxKVClient(grpc::CreateChannel("localhost:50002", grpc::InsecureChannelCredentials()));
 };
 
 }

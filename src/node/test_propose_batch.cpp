@@ -58,7 +58,7 @@ public:
     ProposeBatchTest(const int iGroupIdx, Node * poPaxosNode, NotifierPool * poNotifierPool)
         : ProposeBatch(iGroupIdx, poPaxosNode, poNotifierPool) { }
 
-    void DoPropose(std::vector<PendingProposal> & vecRequest)
+    virtual void DoPropose(const std::vector<PendingProposal> & vecRequest) override
     {
         if (vecRequest.size() == 0)
         {
@@ -68,10 +68,10 @@ public:
         Time::MsSleep(rand() % 1000);
         for (size_t i = 0; i < vecRequest.size(); i++)
         {
-            PendingProposal & oPendingProposal = vecRequest[i];
+            const PendingProposal oPendingProposal = vecRequest[i];
             *oPendingProposal.piBatchIndex = (uint32_t)i;
             *oPendingProposal.pllInstanceID = 1024; 
-            oPendingProposal.poNotifier->SendNotify(0);
+            oPendingProposal.callback(0);
         }
         printf("batch size %zu\n", vecRequest.size());
     }

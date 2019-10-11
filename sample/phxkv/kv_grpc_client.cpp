@@ -21,6 +21,7 @@ See the AUTHORS file for names of contributors.
 
 #include "kv_grpc_client.h"
 #include "phxpaxos/options.h"
+#include <chrono>
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -43,7 +44,7 @@ void PhxKVClient :: NewChannel(const uint64_t llNodeID)
     //for test multi node in one machine, each node have difference grpc_port.
     //but normally, every node's grpc_port is same, so you just set your grpc_port. 
     //if you change paxos_port/grpc_port's relation, you must modify this line.
-    int iGrpcPort = oNodeInfo.GetPort() + 10000;
+    int iGrpcPort = oNodeInfo.GetPort() + 1;
 
     char sAddress[128] = {0};
     snprintf(sAddress, sizeof(sAddress), "%s:%d", oNodeInfo.GetIP().c_str(), iGrpcPort);
@@ -60,8 +61,7 @@ void PhxKVClient :: NewChannel(const uint64_t llNodeID)
 
 int PhxKVClient :: Put(
         const std::string & sKey, 
-        const std::string & sValue, 
-        const uint64_t llVersion,
+        const std::string & sValue,
         const int iDeep)
 {
     if (iDeep > 3)
@@ -72,11 +72,12 @@ int PhxKVClient :: Put(
     KVOperator oRequest;
     oRequest.set_key(sKey);
     oRequest.set_value(sValue);
-    oRequest.set_version(llVersion);
     oRequest.set_operator_(KVOperatorType_WRITE);
 
     KVResponse oResponse;
     ClientContext context;
+    auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(1000);
+    context.set_deadline(deadline);
     Status status = stub_->Put(&context, oRequest, &oResponse);
 
     if (status.ok())
@@ -86,7 +87,7 @@ int PhxKVClient :: Put(
             if (oResponse.master_nodeid() != phxpaxos::nullnode)
             {
                 NewChannel(oResponse.master_nodeid());
-                return Put(sKey, sValue, llVersion, iDeep + 1);
+                return Put(sKey, sValue, iDeep + 1);
             }
             else
             {
@@ -104,8 +105,7 @@ int PhxKVClient :: Put(
 
 int PhxKVClient :: GetLocal(
         const std::string & sKey, 
-        std::string & sValue, 
-        uint64_t & llVersion)
+        std::string & sValue)
 {
     KVOperator oRequest;
     oRequest.set_key(sKey);
@@ -113,67 +113,13 @@ int PhxKVClient :: GetLocal(
 
     KVResponse oResponse;
     ClientContext context;
+    auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(1000);
+    context.set_deadline(deadline);
     Status status = stub_->GetLocal(&context, oRequest, &oResponse);
 
     if (status.ok())
     {
-        sValue = oResponse.data().value();
-        llVersion = oResponse.data().version();
-        return oResponse.ret();
-    }
-    else
-    {
-        return static_cast<int>(PhxKVStatus::FAIL);
-    }
-}
-
-int PhxKVClient :: GetLocal(
-        const std::string & sKey, 
-        const uint64_t minVersion, 
-        std::string & sValue, 
-        uint64_t & llVersion)
-{
-    int ret = GetLocal(sKey, sValue, llVersion);
-    if (ret == 0)
-    {
-        if (llVersion < minVersion)
-        {
-            return static_cast<int>(PhxKVStatus::VERSION_NOTEXIST);
-        }
-    }
-
-    return ret;
-}
-
-int PhxKVClient :: Delete( 
-        const std::string & sKey, 
-        const uint64_t llVersion,
-        const int iDeep)
-{
-    KVOperator oRequest;
-    oRequest.set_key(sKey);
-    oRequest.set_version(llVersion);
-    oRequest.set_operator_(KVOperatorType_DELETE);
-
-    KVResponse oResponse;
-    ClientContext context;
-    Status status = stub_->Delete(&context, oRequest, &oResponse);
-
-    if (status.ok())
-    {
-        if (oResponse.ret() == static_cast<int>(PhxKVStatus::MASTER_REDIRECT))
-        {
-            if (oResponse.master_nodeid() != phxpaxos::nullnode)
-            {
-                NewChannel(oResponse.master_nodeid());
-                return Delete(sKey, llVersion, iDeep + 1);
-            }
-            else
-            {
-                return static_cast<int>(PhxKVStatus::NO_MASTER);
-            }
-        }
-
+        sValue = oResponse.data();
         return oResponse.ret();
     }
     else
@@ -185,7 +131,6 @@ int PhxKVClient :: Delete(
 int PhxKVClient :: GetGlobal(
         const std::string & sKey, 
         std::string & sValue, 
-        uint64_t & llVersion,
         const int iDeep)
 {
     if (iDeep > 3)
@@ -199,6 +144,8 @@ int PhxKVClient :: GetGlobal(
 
     KVResponse oResponse;
     ClientContext context;
+    auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(1000);
+    context.set_deadline(deadline);
     Status status = stub_->GetGlobal(&context, oRequest, &oResponse);
 
     if (status.ok())
@@ -208,7 +155,7 @@ int PhxKVClient :: GetGlobal(
             if (oResponse.master_nodeid() != phxpaxos::nullnode)
             {
                 NewChannel(oResponse.master_nodeid());
-                return GetGlobal(sKey, sValue, llVersion, iDeep + 1);
+                return GetGlobal(sKey, sValue, iDeep + 1);
             }
             else
             {
@@ -216,8 +163,7 @@ int PhxKVClient :: GetGlobal(
             }
         }
 
-        sValue = oResponse.data().value();
-        llVersion = oResponse.data().version();
+        sValue = oResponse.data();
 
         return oResponse.ret();
     }

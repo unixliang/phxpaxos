@@ -67,12 +67,20 @@ public:
 
     virtual int BatchPropose(const int iGroupIdx, const std::string & sValue, uint64_t & llInstanceID, 
             uint32_t & iBatchIndex, SMCtx * poSMCtx) = 0;
+    
+    virtual void AsyncBatchPropose(const int iGroupIdx, const std::string sValue, 
+            uint64_t & llInstanceID, uint32_t & iBatchIndex, std::function<void(int)> callback) = 0;
+
+    virtual void AsyncBatchPropose(const int iGroupIdx, const std::string sValue, 
+            uint64_t & llInstanceID, uint32_t & iBatchIndex, SMCtx * poSMCtx, std::function<void(int)> callback) = 0;
 
     //PhxPaxos will batch proposal while waiting proposals count reach to BatchCount, 
     //or wait time reach to BatchDelayTimeMs.
     virtual void SetBatchCount(const int iGroupIdx, const int iBatchCount) = 0;
 
     virtual void SetBatchDelayTimeMs(const int iGroupIdx, const int iBatchDelayTimeMs) = 0;
+
+    virtual void SetBatchAdaptiveDelayTimeMs(const int iGroupIdx, const int iBatchAdptiveDelayTimeMs) = 0;
 
     //State machine.
     

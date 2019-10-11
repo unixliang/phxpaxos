@@ -779,6 +779,28 @@ int PNode :: BatchPropose(const int iGroupIdx, const std::string & sValue,
     return m_vecProposeBatch[iGroupIdx]->Propose(sValue, llInstanceID, iBatchIndex, poSMCtx);
 }
 
+void PNode :: AsyncBatchPropose(const int iGroupIdx, const std::string sValue, 
+        uint64_t & llInstanceID, uint32_t & iBatchIndex, std::function<void(int)> callback)
+{
+    return AsyncBatchPropose(iGroupIdx, sValue, llInstanceID, iBatchIndex, nullptr, callback);
+}
+void PNode :: AsyncBatchPropose(const int iGroupIdx, const std::string sValue, 
+        uint64_t & llInstanceID, uint32_t & iBatchIndex, SMCtx * poSMCtx, std::function<void(int)> callback)
+{
+    if (!CheckGroupID(iGroupIdx))
+    {
+        callback(Paxos_GroupIdxWrong);
+    }
+
+    if (m_vecProposeBatch.size() == 0)
+    {
+        callback(Paxos_SystemError);
+    }
+
+    return m_vecProposeBatch[iGroupIdx]->AsyncPropose(sValue, llInstanceID, iBatchIndex, poSMCtx, callback);
+}
+
+
 void PNode :: SetBatchCount(const int iGroupIdx, const int iBatchCount)
 {
     if (!CheckGroupID(iGroupIdx))
@@ -807,6 +829,21 @@ void PNode :: SetBatchDelayTimeMs(const int iGroupIdx, const int iBatchDelayTime
     }
 
     m_vecProposeBatch[iGroupIdx]->SetBatchDelayTimeMs(iBatchDelayTimeMs);
+}
+
+void PNode :: SetBatchAdaptiveDelayTimeMs(const int iGroupIdx, const int iBatchAdptiveDelayTimeMs)
+{
+    if (!CheckGroupID(iGroupIdx))
+    {
+        return;
+    }
+
+    if (m_vecProposeBatch.size() == 0)
+    {
+        return;
+    }
+
+    m_vecProposeBatch[iGroupIdx]->SetBatchAdaptiveDelayTimeMs(iBatchAdptiveDelayTimeMs);
 }
     
 }

@@ -48,17 +48,11 @@ public:
 
     PhxKVStatus Put(
             const std::string & sKey, 
-            const std::string & sValue, 
-            const uint64_t llVersion = NullVersion);
+            const std::string & sValue);
 
     PhxKVStatus GetLocal(
             const std::string & sKey, 
-            std::string & sValue, 
-            uint64_t & llVersion);
-
-    PhxKVStatus Delete( 
-            const std::string & sKey, 
-            const uint64_t llVersion = NullVersion);
+            std::string & sValue);
 
 private:
     int GetGroupIdx(const std::string & sKey);

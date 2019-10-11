@@ -44,29 +44,15 @@ public:
     int Put(
             const std::string & sKey, 
             const std::string & sValue, 
-            const uint64_t llVersion,
             const int iDeep = 0);
 
     int GetLocal(
             const std::string & sKey, 
-            std::string & sValue, 
-            uint64_t & llVersion);
-
-    int GetLocal(
-            const std::string & sKey, 
-            const uint64_t minVersion, 
-            std::string & sValue, 
-            uint64_t & llVersion);
-
-    int Delete( 
-            const std::string & sKey, 
-            const uint64_t llVersion,
-            const int iDeep = 0);
+            std::string & sValue);
 
     int GetGlobal(
             const std::string & sKey, 
             std::string & sValue, 
-            uint64_t & llVersion,
             const int iDeep = 0);
 
 private:
