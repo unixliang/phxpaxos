@@ -306,7 +306,7 @@ void Database::UpdateMaxInstanceIDCache(const uint64_t llInstanceID) {
     return;
   }
 
-  if (-1 == m_llMaxInstanceID || llInstanceID > m_llMaxInstanceID) {
+  if (NoCheckpoint == m_llMaxInstanceID || llInstanceID > m_llMaxInstanceID) {
     m_llMaxInstanceID = llInstanceID;
   }
 }
@@ -507,7 +507,7 @@ int Database :: GetMaxInstanceID(uint64_t & llInstanceID)
 
     PLG1Debug("(unix) MaxInstanceID %lu", m_llMaxInstanceID);
 
-    if (-1 == m_llMaxInstanceID) {
+    if (NoCheckpoint == m_llMaxInstanceID) {
       return 1;
     }
 
@@ -566,7 +566,7 @@ int Database :: GetMinChosenInstanceID(uint64_t & llMinInstanceID)
         return -1;
     }
 
-    if (-1 != m_llMinChosenInstanceID) {
+    if (NoCheckpoint != m_llMinChosenInstanceID) {
       return m_llMinChosenInstanceID;
     }
 

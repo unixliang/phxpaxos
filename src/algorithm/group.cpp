@@ -740,7 +740,7 @@ int Group :: GetMaxInstanceIDFromLog(uint64_t & llMaxInstanceID)
 
 int Group :: ProtectionLogic_IsCheckpointInstanceIDCorrect(const uint64_t llCPInstanceID, const uint64_t llLogMaxInstanceID) 
 {
-    if (-1 == llCPInstanceID || llCPInstanceID <= llLogMaxInstanceID)
+    if (NoCheckpoint == llCPInstanceID || llCPInstanceID <= llLogMaxInstanceID)
     {
         return 0;
     }

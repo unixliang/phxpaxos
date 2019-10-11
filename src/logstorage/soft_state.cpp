@@ -94,7 +94,7 @@ void SoftState :: SetPromiseBallot(const uint64_t llInstanceID, const BallotNumb
 
   PLG1Debug("(unix) set new PromiseBallot(ProposalID: %lu, NodeID: %lu). InstanceID %lu", oBallotNumber.m_llProposalID, oBallotNumber.m_llNodeID, llInstanceID);
 
-  while (m_mapInstanceID2PromiseBallot.size() > m_iMaxWindowSize)
+  while (m_mapInstanceID2PromiseBallot.size() > (uint32_t)m_iMaxWindowSize)
   {
     m_mapInstanceID2PromiseBallot.erase(m_mapInstanceID2PromiseBallot.begin());
   }
@@ -143,7 +143,7 @@ uint64_t SoftState::GenMyProposalID() {
 
 void SoftState::SetEndPromiseInstanceID(const uint64_t llEndInstanceID) {
   m_setEndPromiseInstanceID.insert(llEndInstanceID);
-  while (m_setEndPromiseInstanceID.size() > m_iMaxWindowSize)
+  while (m_setEndPromiseInstanceID.size() > (uint32_t)m_iMaxWindowSize)
   {
     m_setEndPromiseInstanceID.erase(m_setEndPromiseInstanceID.begin());
   }
@@ -175,7 +175,7 @@ int MultiSoftState::Init(const Options & oOptions) {
 }
 
 SoftState *MultiSoftState::GetSoftState(const int iGroupIdx) {
-  if (iGroupIdx >= m_vecSoftStateList.size()) {
+  if ((uint32_t)iGroupIdx >= m_vecSoftStateList.size()) {
     PLErr("iGroupIdx %d < size %u", iGroupIdx, m_vecSoftStateList.size());
     return nullptr;
   }

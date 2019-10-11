@@ -19,7 +19,7 @@
 
 allobject=libnode.a test_propose_batch 
 
-NODE_OBJ=group.o pnode.o node.o propose_batch.o
+NODE_OBJ=pnode.o node.o propose_batch.o
 
 NODE_LIB=node src/comm:comm src/logstorage:logstorage src/communicate:communicate include:include src/algorithm:algorithm src/config:config src/master:master
 

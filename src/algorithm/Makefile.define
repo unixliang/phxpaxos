@@ -19,9 +19,9 @@
 
 allobject=libalgorithm.a 
 
-ALGORITHM_OBJ=base.o proposer.o acceptor.o learner.o learner_sender.o instance.o ioloop.o commitctx.o committer.o checkpoint_sender.o checkpoint_receiver.o msg_counter.o
+ALGORITHM_OBJ=base.o proposer.o acceptor.o learner.o learner_sender.o instance.o ioloop.o commitctx.o committer.o checkpoint_sender.o checkpoint_receiver.o msg_counter.o group.o
 
-ALGORITHM_LIB=algorithm src/comm:comm src/logstorage:logstorage src/sm-base:smbase include:include src/checkpoint:checkpoint src/config:config
+ALGORITHM_LIB=algorithm src/comm:comm src/logstorage:logstorage src/sm-base:smbase include:include src/checkpoint:checkpoint src/config:config src/communicate:communicate
 
 ALGORITHM_SYS_LIB=
 

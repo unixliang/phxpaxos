@@ -42,7 +42,7 @@ class LearnerState
 public:
     struct LearnState
     {
-        uint64_t llInstanceID{-1};
+        uint64_t llInstanceID{NoCheckpoint};
         BallotNumber oBallot;
         std::string sValue;
         uint32_t iLastChecksum{0};

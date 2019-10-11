@@ -110,7 +110,7 @@ void Cleaner :: run()
         uint64_t llNowInstanceID = m_poCheckpointMgr->GetNowInstanceID();
 
         int iDeleteCount = 0;
-        while ((-1 != llCPInstanceID && llInstanceID + m_llHoldCount + m_poConfig->GetMaxWindowSize() < llCPInstanceID)
+        while ((NoCheckpoint != llCPInstanceID && llInstanceID + m_llHoldCount + m_poConfig->GetMaxWindowSize() < llCPInstanceID)
                 && (llInstanceID + m_llHoldCount + m_poConfig->GetMaxWindowSize() < llNowInstanceID))
         {
             bool bDeleteRet = DeleteOne(llInstanceID);
@@ -132,7 +132,7 @@ void Cleaner :: run()
             }
         }
 
-        if (-1 == llCPInstanceID)
+        if (NoCheckpoint == llCPInstanceID)
         {
             PLGStatus("sleep a while, max deleted instanceid %lu checkpoint instanceid (no checkpoint) nowinstanceid %lu",
                     llInstanceID, llNowInstanceID);

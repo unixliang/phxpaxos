@@ -57,7 +57,7 @@ public:
 public:
     std::string m_sValue;
 
-    uint64_t m_llProposalID{-1};
+  uint64_t m_llProposalID{(uint64_t)-1};
     BallotNumber m_oHighestOtherPreAcceptBallot;
 
     SoftState * m_poSoftState;

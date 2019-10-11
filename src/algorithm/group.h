@@ -140,8 +140,8 @@ private:
     uint32_t m_iMaxWindowSize{100};
 
 
-    uint64_t m_llNowInstanceID{-1};
-    uint64_t m_llNowIdleInstanceID{-1};
+    uint64_t m_llNowInstanceID{NoCheckpoint};
+    uint64_t m_llNowIdleInstanceID{NoCheckpoint};
 
     bool m_bStarted{false};
 

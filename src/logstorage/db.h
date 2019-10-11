@@ -126,8 +126,8 @@ private:
     TimeStat m_oTimeStat;
 
 private:
-  uint64_t m_llMinChosenInstanceID{-1};
-  uint64_t m_llMaxInstanceID{-1};
+  uint64_t m_llMinChosenInstanceID{NoCheckpoint};
+  uint64_t m_llMaxInstanceID{NoCheckpoint};
 
 private:
   SoftState *m_poSoftState{nullptr};

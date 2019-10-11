@@ -145,7 +145,7 @@ void IOLoop :: DealWithRetry()
         return;
     }
     
-    bool bHaveRetryOne = false;
+    //bool bHaveRetryOne = false;
     while (!m_oRetryQueue.empty())
     {
 // TODO: 处理下一个窗口的消息
@@ -189,7 +189,7 @@ void IOLoop :: CheckNewValue()
         return;
     }
 
-    uint64_t llInstanceID{-1};
+    uint64_t llInstanceID{NoCheckpoint};
     bool use_idle_instance{false};
     if (!m_poGroup->HasTimeoutInstance(llInstanceID)) {
         use_idle_instance = m_poGroup->HasIdleInstance(llInstanceID);
